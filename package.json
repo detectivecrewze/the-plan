@@ -1,0 +1,23 @@
+{
+  "name": "the-plan",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "check": "npm run test && npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "@fontsource/kalam": "^5.2.8",
+    "@fontsource/caveat": "^5.2.8",
+    "@fontsource/nunito-sans": "^5.2.8"
+  }
+}
