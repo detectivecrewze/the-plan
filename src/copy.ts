@@ -2,7 +2,7 @@ import type { Locale } from './project';
 
 export const copy = {
   id: {
-    demo: 'DEMO TAHAP 1 · data contoh', open: 'Pasangkan keping foto', openAssist: 'Buka tanpa menggeser',
+    open: 'Pasangkan keping foto', openAssist: 'Buka tanpa menggeser',
     puzzleHint: 'Pasangkan tiga keping foto ke ruang yang sesuai', puzzleProgress: 'KEPING TERPASANG',
     scroll: 'GULIR UNTUK MELIHAT RENCANANYA', play: 'Putar lagu', pause: 'Jeda lagu', noAudio: 'Lagu akan dipasang saat gift dibuat',
     invitation: 'UNDANGAN KECIL', date: 'TANGGAL', time: 'WAKTU', place: 'TEMPAT', dress: 'DRESS CODE', plan: 'RENCANA KITA', map: 'Lihat lokasi',
@@ -13,7 +13,7 @@ export const copy = {
     downloadError: 'PNG gagal dibuat. Coba lagi.', retry: 'Coba lagi',
   },
   en: {
-    demo: 'STAGE 1 DEMO · sample data', open: 'Place the photo piece', openAssist: 'Open without dragging',
+    open: 'Place the photo piece', openAssist: 'Open without dragging',
     puzzleHint: 'Match all three photo pieces with their spaces', puzzleProgress: 'PIECES PLACED',
     scroll: 'SCROLL TO SEE THE PLAN', play: 'Play song', pause: 'Pause song', noAudio: 'The song will be added when the gift is made',
     invitation: 'A LITTLE INVITATION', date: 'DATE', time: 'TIME', place: 'PLACE', dress: 'DRESS CODE', plan: 'OUR LITTLE PLAN', map: 'View location',

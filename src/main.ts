@@ -111,7 +111,6 @@ function render(): void {
   const mapUrl = safeExternalUrl(project.invitation.mapsUrl);
   app!.innerHTML = `
     <div class="grain" aria-hidden="true"></div>
-    <div class="demo-ribbon">${c.demo}</div>
     <div class="gift-shell ${unlocked ? 'is-open' : ''}">
       <section class="gate" id="gate" aria-label="Opening puzzle">
         <div class="gate-paper">

@@ -49,22 +49,6 @@ img, video, svg { display: block; max-width: 100%; }
   overflow: hidden;
 }
 
-.demo-ribbon {
-  position: fixed;
-  z-index: 55;
-  left: 18px;
-  bottom: 18px;
-  max-width: calc(100vw - 36px);
-  padding: 7px 13px;
-  border: 1px solid #a74138;
-  border-radius: 40px;
-  background: #f8eee4;
-  color: #8e342e;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .13em;
-}
-
 .section-pad { padding: 112px max(42px, calc((100% - 940px) / 2)); }
 .section-tag {
   display: flex;
@@ -572,7 +556,6 @@ footer { padding: 23px; background: #6c2524; color: #eed6c8; font: 24px 'Caveat'
 /* Project themes change the ink and paper system while preserving the scrapbook layout. */
 html, body { color: var(--theme-ink); background: var(--theme-page); }
 .gift-shell { background: var(--theme-shell); box-shadow: 0 0 0 1px var(--theme-border), 0 20px 80px color-mix(in srgb, var(--theme-primary-dark), transparent 82%); }
-.demo-ribbon { border-color: var(--theme-primary); background: var(--theme-paper); color: var(--theme-primary-dark); }
 .section-tag, .red, .small-star, .scroll-cue, .paper-tack { color: var(--theme-accent); }
 .section-tag::after { background: var(--theme-border); }
 .label-chip { border-color: var(--theme-primary); color: var(--theme-primary); }
@@ -699,8 +682,6 @@ html, body { color: var(--theme-ink); background: var(--theme-page); }
 /* Mobile-first refinement */
 @media (max-width: 720px) {
   .section-pad { padding: 76px 20px; }
-  .demo-ribbon { left: 8px; bottom: max(8px, env(safe-area-inset-bottom)); max-width: calc(100vw - 16px); font-size: 8px; }
-
   .gate { place-items: start center; padding: max(10px, env(safe-area-inset-top)) 10px max(12px, env(safe-area-inset-bottom)); }
   .gate-paper { min-height: 0; padding: 27px 16px 14px; box-shadow: 0 12px 32px #653a2b38, 5px 6px 0 #e9d8c8; }
   .gate-paper::before, .gate-paper::after { top: 9px; width: 58px; height: 16px; }
