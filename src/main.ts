@@ -1,9 +1,8 @@
-import '@fontsource/kalam/400.css';
-import '@fontsource/kalam/700.css';
 import '@fontsource/caveat/400.css';
 import '@fontsource/caveat/700.css';
-import '@fontsource/nunito-sans/400.css';
-import '@fontsource/nunito-sans/700.css';
+import '@fontsource/chewy/400.css';
+import '@fontsource/comic-neue/400.css';
+import '@fontsource/comic-neue/700.css';
 import './style.css';
 import { demo } from './demo';
 import { t, eventDate } from './copy';
@@ -45,6 +44,9 @@ const icon = (name: string) => {
     arrow: '<path d="M5 12h14m-7-7 7 7-7 7"/>', close: '<path d="M5 5l14 14M19 5 5 19"/>',
     download: '<path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/>', share: '<path d="M12 16V3m-4 4 4-4 4 4M4 13v7h16v-7"/>',
     pin: '<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
+    spark: '<path d="M12 2v20M2 12h20M4.9 4.9l14.2 14.2M19.1 4.9 4.9 19.1"/>',
+    down: '<path d="M12 3v17m-6-6 6 6 6-6"/>',
+    heart: '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',
   };
   return `<svg ${common}>${paths[name] || ''}</svg>`;
 };
@@ -114,7 +116,7 @@ function render(): void {
     <div class="gift-shell ${unlocked ? 'is-open' : ''}">
       <section class="gate" id="gate" aria-label="Opening puzzle">
         <div class="gate-paper">
-          <div class="small-star star-a">✳</div><div class="small-star star-b">✳</div>
+          <div class="small-star star-a">${icon('spark')}</div><div class="small-star star-b">${icon('spark')}</div>
           <p class="eyebrow red">${esc(project.opening.eyebrow)}</p>
           <h1>${lines(project.opening.title)}</h1>
           ${renderOpeningPuzzle()}
@@ -137,26 +139,26 @@ function render(): void {
             <div class="music-player-main"><div class="music-cover">${photo(project.music.cover)}</div><div class="music-copy"><span>NOW PLAYING</span><strong>${esc(project.music.title)}</strong><small>${esc(project.music.artist)}</small></div><div class="music-actions"><span class="music-more" aria-hidden="true"><i></i><i></i><i></i></span><button id="music-control" class="music-button" aria-label="${c.play}" ${project.music.audioUrl ? '' : 'disabled'}>${icon('play')}</button></div></div>
             ${project.music.audioUrl ? '<div class="music-progress"><span id="music-current">0:00</span><input id="music-seek" aria-label="Song progress" type="range" min="0" max="100" step="0.1" value="0"><span id="music-total">0:00</span></div>' : `<p class="music-note">${c.noAudio}</p>`}
           </div>
-          <div class="scroll-cue">${c.scroll}<span>↓</span></div>
+          <div class="scroll-cue">${c.scroll}<span>${icon('down')}</span></div>
         </section>
 
         <section class="invitation section-pad" id="invitation"><div class="section-tag" data-reveal>01 / ${c.invitation}</div>
           <div class="invitation-print-stage">
             <div class="invitation-printer-machine" aria-hidden="true"><span>THE PLAN PRESS</span><i></i><b></b></div>
             <div class="invitation-printer-slot" aria-hidden="true"></div>
-            <div class="invitation-paper-sheet"><div class="invitation-paper"><div class="paper-tack">✳</div><p class="scribble">a little something for us</p><h2>${esc(project.invitation.title)}</h2><p class="invitation-message">${esc(project.invitation.message)}</p>
+            <div class="invitation-paper-sheet"><div class="invitation-paper"><div class="paper-tack">${icon('spark')}</div><p class="scribble">a little something for us</p><h2>${esc(project.invitation.title)}</h2><p class="invitation-message">${esc(project.invitation.message)}</p>
             <div class="event-grid"><div class="calendar-art"><span>${esc(date.month)}</span><strong>${esc(date.day)}</strong><em>${esc(date.weekday)}</em></div><div class="event-details">
               <div><span>${c.date}</span><strong>${esc(date.full)}</strong></div><div><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong></div>
               ${project.invitation.venue ? `<div><span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>${project.invitation.address ? `<small>${esc(project.invitation.address)}</small>` : ''}${mapUrl ? `<a href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">${icon('pin')}${c.map}</a>` : ''}</div>` : ''}
               ${project.invitation.dressCode ? `<div><span>${c.dress}</span><strong>${esc(project.invitation.dressCode)}</strong></div>` : ''}
             </div></div></div></div>
           </div>
-          ${project.invitation.rundown.length ? `<div class="rundown"><div class="rundown-title" data-reveal><span>${c.plan}</span><i>✦</i></div><div class="rundown-list">${project.invitation.rundown.map((item, index) => `<div class="rundown-item" data-reveal style="--reveal-order:${index}"><time>${esc(item.time)}</time><span class="rundown-dot"></span><div><strong>${esc(item.title)}</strong>${item.note ? `<p>${esc(item.note)}</p>` : ''}</div><b>0${index + 1}</b></div>`).join('')}</div></div>` : ''}
+          ${project.invitation.rundown.length ? `<div class="rundown"><div class="rundown-title" data-reveal><span>${c.plan}</span><i>${icon('spark')}</i></div><div class="rundown-list">${project.invitation.rundown.map((item, index) => `<div class="rundown-item" data-reveal style="--reveal-order:${index}"><time>${esc(item.time)}</time><span class="rundown-dot"></span><div><strong>${esc(item.title)}</strong>${item.note ? `<p>${esc(item.note)}</p>` : ''}</div><b>0${index + 1}</b></div>`).join('')}</div></div>` : ''}
         </section>
 
-        <section class="letter-section section-pad"><div class="section-tag" data-reveal>02 / ${c.letter}</div><div class="letter-paper" data-reveal><div class="letter-tape"></div><span class="letter-stamp">with all my heart ♡</span><h2>${esc(project.letter.title)}</h2><div class="letter-body">${project.letter.paragraphs.map((p, index) => `<p data-reveal style="--reveal-order:${index}">${esc(p)}</p>`).join('')}</div><p class="letter-signoff" data-reveal>${esc(project.letter.signoff)}</p></div></section>
+        <section class="letter-section section-pad"><div class="section-tag" data-reveal>02 / ${c.letter}</div><div class="letter-paper" data-reveal><div class="letter-tape"></div><span class="letter-stamp">with all my heart ${icon('heart')}</span><h2>${esc(project.letter.title)}</h2><div class="letter-body">${project.letter.paragraphs.map((p, index) => `<p data-reveal style="--reveal-order:${index}">${esc(p)}</p>`).join('')}</div><p class="letter-signoff" data-reveal>${esc(project.letter.signoff)}</p></div></section>
         <section class="gallery-section section-pad"><div class="section-tag" data-reveal>03 / ${c.gallery}</div><div class="gallery-heading" data-reveal><h2>${esc(project.gallery.title)}</h2><p>${esc(project.gallery.subtitle)}</p></div><div id="gallery-content">${renderGallery()}</div></section>
-        <section class="closing-section section-pad"><div class="closing-paper" data-reveal><p class="scribble">one more thing...</p><h2>${esc(project.closing.title)}</h2><p>${esc(project.closing.message)}</p><div class="closing-divider">✳ &nbsp; ✳ &nbsp; ✳</div><h3>${esc(project.closing.question)}</h3><button id="say-yes" class="yes-button">${c.yes} ${icon('arrow')}</button><small>THE PLAN · ${date.full.toUpperCase()}</small></div></section>
+        <section class="closing-section section-pad"><div class="closing-paper" data-reveal><p class="scribble">one more thing...</p><h2>${esc(project.closing.title)}</h2><p>${esc(project.closing.message)}</p><div class="closing-divider"><span>${icon('spark')}</span><span>${icon('spark')}</span><span>${icon('spark')}</span></div><h3>${esc(project.closing.question)}</h3><button id="say-yes" class="yes-button">${c.yes} ${icon('arrow')}</button><small>THE PLAN · ${date.full.toUpperCase()}</small></div></section>
       </main>
     </div>
     <div class="modal-backdrop" id="ticket-modal" hidden><div class="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-title"><button class="modal-close" id="ticket-close" aria-label="${c.close}">${icon('close')}</button><div class="printer"><div class="printer-top"><span>THE PLAN</span><span class="printer-light"></span></div><div class="printer-slot"></div><div class="printed-card" id="printed-card"><span class="ticket-stamp">THE PLAN<br>FOR YOU</span><span class="ticket-kicker">A LITTLE DAY, PLANNED WITH LOVE</span><h3>${esc(project.invitation.title)}</h3><div class="ticket-rule"></div><span>${c.date}</span><strong>${esc(date.full)}</strong><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong>${project.invitation.venue ? `<span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>` : ''}<em>${esc(project.closing.ticketMessage)}</em><small>THE PLAN · KEEP THIS DATE.</small></div></div><h2 id="ticket-title">${c.ready}</h2><p class="ticket-feedback" id="ticket-feedback">${c.saved}</p><div class="ticket-actions"><button id="ticket-download">${icon('download')}${c.download}</button><button id="ticket-share">${icon('share')}${c.share}</button></div></div></div>`;

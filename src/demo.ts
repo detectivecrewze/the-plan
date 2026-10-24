@@ -21,10 +21,9 @@ export const demo: GiftProject = {
     photo: { id: 'hero', src: '/demo-media/hero.jpeg', alt: 'Pasangan tersenyum bersama di luar ruangan', caption: 'another year of you, another year of us' },
   },
   music: {
-    title: 'Our celebration song', artist: 'for your birthday and our story',
-    cover: { id: 'cover', src: '/demo-media/memory-06.jpeg', alt: 'Foto booth pasangan', caption: '' },
-    // Original instrumental demo loop. Replace with an approved R2 track for a customer gift.
-    audioUrl: '/demo-soundtrack.wav',
+    title: 'About You', artist: 'The 1975',
+    cover: { id: 'cover', src: 'https://arcade-edition.aldoramadhan16.workers.dev/files/1773904442555-tjdyhk.jpg', alt: 'Cover album About You oleh The 1975', caption: '' },
+    audioUrl: 'https://arcade-edition.aldoramadhan16.workers.dev/files/1773904364430-4b7hn9.mp3',
   },
   invitation: {
     title: 'A birthday & anniversary date',
