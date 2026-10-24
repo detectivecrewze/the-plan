@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { demo } from '../src/demo';
+import { copy } from '../src/copy';
 import { validateProject, safeExternalUrl } from '../src/project';
 import { themeIds, themes } from '../src/themes';
 
@@ -33,5 +34,8 @@ describe('gift project contract', () => {
       expect(validateProject({ ...demo, theme })).toEqual([]);
     });
     expect(validateProject({ ...demo, theme: 'unknown' as never })).toContain('A supported theme is required');
+  });
+  it('keeps Indonesian and English gift controls in parity', () => {
+    expect(Object.keys(copy.id).sort()).toEqual(Object.keys(copy.en).sort());
   });
 });

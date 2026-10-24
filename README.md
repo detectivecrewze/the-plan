@@ -11,7 +11,9 @@ npm run dev
 
 Open `http://127.0.0.1:5173/`. Run `npm run check` for contract tests, TypeScript, and a production build.
 
-The demo content is in `src/demo.ts` and `src/demoEnglish.ts`. Locale is project data selected by the future customer form; the public gift intentionally has no language switch. The UI consumes the typed `GiftProject` contract from `src/project.ts`; later a Worker adapter can return this same shape. Gallery stamps accept images and playable videos (`type: "video"`, optional `poster`) with inline mobile playback. The printed PNG is drawn at 1080×1920 in `src/ticket.ts`, independent of screenshots and remote photos. The original demo audio is in `public/demo-soundtrack.wav`.
+The demo content, including soundtrack and cover URLs, is in `src/demo.ts` and `src/demoEnglish.ts`. Locale is project data selected by the future customer form; the public gift intentionally has no language switch. The UI consumes the typed `GiftProject` contract from `src/project.ts`; later a Worker adapter can return this same shape. Gallery stamps accept images and playable videos (`type: "video"`, optional `poster`) with inline mobile playback. The printed PNG is drawn at 1080×1920 in `src/ticket.ts`, independent of screenshots and remote photos.
+
+On small or touch-first screens, completing the puzzle reveals an inline `Lanjut ke ceritanya` continuation card. Its explicit tap starts the soundtrack before opening the gift, satisfying iOS audio gesture requirements without exposing a technical music prompt. If playback genuinely fails, retry and silent-entry controls appear; desktop keeps the immediate opening flow.
 
 Color is also project data. The six curated palette IDs live in `src/themes.ts`, recolor the complete gift and exported ticket, and will be selected from the future form/Studio rather than the recipient gift. During local Stage 1 review only, preview them with `?theme=burgundy-keepsake`, `antique-rose`, `sage-botanical`, `espresso-journal`, `midnight-navy`, or `lavender-dusk`. The query override is ignored outside localhost.
 

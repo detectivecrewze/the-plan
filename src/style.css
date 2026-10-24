@@ -220,8 +220,20 @@ img, video, svg { display: block; max-width: 100%; }
 .puzzle-board.is-complete .puzzle-photo-mount { animation: completed-photo 1.2s cubic-bezier(.2,.75,.25,1) both; }
 .puzzle-board.is-complete .puzzle-photo-mount::after { animation: photo-shine .85s .2s ease both; }
 .puzzle-completed .gate-instruction,
+.puzzle-completed .puzzle-progress,
 .puzzle-completed .puzzle-tray,
-.puzzle-completed .assist-link { opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+.puzzle-completed .assist-link {
+  max-height: 0;
+  min-height: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease, max-height .38s ease, margin .38s ease, padding .38s ease;
+}
 .gate-note { max-width: 370px; margin: 8px auto 13px; color: #7a4a40; font: 25px / 1.25 'Caveat', cursive; }
 .gate-instruction { max-width: 340px; margin: 9px auto 9px; color: #906e63; font-size: 10px; line-height: 1.55; letter-spacing: .11em; text-transform: uppercase; }
 .puzzle-progress { display: flex; align-items: center; justify-content: center; gap: 9px; color: #a14a40; font-size: 9px; font-weight: 900; letter-spacing: .13em; }
@@ -253,6 +265,68 @@ img, video, svg { display: block; max-width: 100%; }
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+.gate-continuation {
+  position: relative;
+  width: min(100%, 340px);
+  margin: 20px auto 4px;
+  padding: 21px 19px 18px;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-paper-bright);
+  box-shadow: 5px 7px 0 var(--theme-shadow), 0 12px 24px color-mix(in srgb, var(--theme-primary-dark), transparent 82%);
+  clip-path: polygon(0 7px, 7px 3px, 14px 7px, 21px 2px, 28px 7px, 35px 3px, 42px 7px, calc(100% - 42px) 7px, calc(100% - 35px) 3px, calc(100% - 28px) 7px, calc(100% - 21px) 2px, calc(100% - 14px) 7px, calc(100% - 7px) 3px, 100% 7px, 100% calc(100% - 7px), calc(100% - 7px) calc(100% - 3px), calc(100% - 14px) calc(100% - 7px), calc(100% - 21px) calc(100% - 2px), calc(100% - 28px) calc(100% - 7px), calc(100% - 35px) calc(100% - 3px), calc(100% - 42px) calc(100% - 7px), 42px calc(100% - 7px), 35px calc(100% - 3px), 28px calc(100% - 7px), 21px calc(100% - 2px), 14px calc(100% - 7px), 7px calc(100% - 3px), 0 calc(100% - 7px));
+  opacity: 0;
+  transform: translateY(14px) rotate(-.7deg);
+  transition: opacity .38s ease, transform .48s cubic-bezier(.2,.75,.25,1);
+}
+.gate-continuation[hidden] { display: none; }
+.gate-continuation.is-visible { opacity: 1; transform: translateY(0) rotate(-.7deg); }
+.continuation-tape {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 72px;
+  height: 17px;
+  background: color-mix(in srgb, var(--theme-tape), transparent 10%);
+  transform: translateX(-50%) rotate(2deg);
+}
+.continuation-note { margin: 1px 0 13px; color: var(--theme-primary-dark); font: 24px / 1 'Caveat', cursive; }
+.continuation-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--theme-primary-dark);
+  box-shadow: 4px 4px 0 var(--theme-shadow);
+  color: var(--theme-paper-bright);
+  font: 700 15px 'Comic Neue', cursive;
+  transition: transform .2s ease, opacity .2s ease;
+}
+.continuation-button:not(:disabled):hover { transform: translateY(-2px); }
+.continuation-button:disabled { cursor: wait; opacity: .72; }
+.continuation-button svg { width: 18px; height: 18px; }
+.continuation-button:focus-visible,
+.continuation-retry:focus-visible,
+.continuation-silent:focus-visible { outline: 3px solid var(--theme-light); outline-offset: 3px; }
+.continuation-status { margin: 12px auto 0; max-width: 270px; color: var(--theme-ink-soft); font-size: 12px; line-height: 1.45; }
+.gate-continuation.has-error .continuation-status { color: var(--theme-primary-dark); }
+.continuation-fallback { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 14px; }
+.continuation-fallback[hidden] { display: none; }
+.continuation-retry,
+.continuation-silent {
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: 3px;
+  background: var(--theme-paper);
+  color: var(--theme-primary-dark);
+  font: 700 12px 'Comic Neue', cursive;
+}
+.continuation-retry { background: var(--theme-primary-dark); color: var(--theme-paper-bright); }
 
 /* Hero — a lighter Polaroid mounted inside the same perforated stamp language. */
 .hero { position: relative; min-height: 100svh; padding-top: 52px; background: #f6eee4; }

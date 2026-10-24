@@ -4,6 +4,8 @@ export const copy = {
   id: {
     open: 'Pasangkan keping foto', openAssist: 'Buka tanpa menggeser',
     puzzleHint: 'Pasangkan tiga keping foto ke ruang yang sesuai', puzzleProgress: 'KEPING TERPASANG',
+    pictureComplete: 'the picture is complete', continueStory: 'Lanjut ke ceritanya', openingLoading: 'Membuka ceritanya...',
+    openingError: 'Belum berhasil membuka. Periksa koneksimu lalu coba lagi.', enterWithoutAudio: 'Buka tanpa musik',
     scroll: 'GULIR UNTUK MELIHAT RENCANANYA', play: 'Putar lagu', pause: 'Jeda lagu', noAudio: 'Lagu akan dipasang saat gift dibuat',
     invitation: 'UNDANGAN KECIL', date: 'TANGGAL', time: 'WAKTU', place: 'TEMPAT', dress: 'DRESS CODE', plan: 'RENCANA KITA', map: 'Lihat lokasi',
     letter: 'SEBUAH SURAT', gallery: 'ALBUM KECIL',
@@ -15,6 +17,8 @@ export const copy = {
   en: {
     open: 'Place the photo piece', openAssist: 'Open without dragging',
     puzzleHint: 'Match all three photo pieces with their spaces', puzzleProgress: 'PIECES PLACED',
+    pictureComplete: 'the picture is complete', continueStory: 'Continue to the story', openingLoading: 'Opening the story...',
+    openingError: 'We could not open it yet. Check your connection and try again.', enterWithoutAudio: 'Open without music',
     scroll: 'SCROLL TO SEE THE PLAN', play: 'Play song', pause: 'Pause song', noAudio: 'The song will be added when the gift is made',
     invitation: 'A LITTLE INVITATION', date: 'DATE', time: 'TIME', place: 'PLACE', dress: 'DRESS CODE', plan: 'OUR LITTLE PLAN', map: 'View location',
     letter: 'A LETTER', gallery: 'A LITTLE ALBUM',

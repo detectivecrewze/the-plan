@@ -25,7 +25,12 @@ let unlocked = false;
 let ticketBlob: Blob | null = null;
 let audio: HTMLAudioElement | null = null;
 let gateCompletionPending = false;
+let gateAudioAttemptPending = false;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const mobileMusicHandshake = Boolean(project.music.audioUrl) && (
+  matchMedia('(max-width: 760px)').matches || matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
+);
+const GATE_AUDIO_TIMEOUT_MS = 8_000;
 
 const esc = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char);
 const lines = (value: string) => esc(value).replace(/\n/g, '<br>');
@@ -125,6 +130,16 @@ function render(): void {
           <div class="puzzle-progress"><span>${c.puzzleProgress}</span><strong id="puzzle-counter">0 / ${PUZZLE_PIECES.length}</strong></div>
           <div class="puzzle-tray">${renderPuzzlePieces(c.open)}</div>
           <button class="assist-link" id="gate-assist">${c.openAssist}</button>
+          <div class="gate-continuation" id="gate-continuation" hidden>
+            <span class="continuation-tape" aria-hidden="true"></span>
+            <p class="continuation-note">${c.pictureComplete}</p>
+            <button class="continuation-button" id="gate-continue" type="button">${c.continueStory}${icon('arrow')}</button>
+            <p class="continuation-status" id="gate-continuation-status" role="status" aria-live="polite" aria-atomic="true" hidden></p>
+            <div class="continuation-fallback" id="gate-continuation-fallback" hidden>
+              <button class="continuation-retry" id="gate-continuation-retry" type="button">${c.retry}</button>
+              <button class="continuation-silent" id="gate-continuation-silent" type="button">${c.enterWithoutAudio}</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -188,7 +203,73 @@ function completePuzzle(): void {
   document.querySelector('#puzzle-board')?.classList.add('is-complete');
   document.querySelector('.gate-paper')?.classList.add('puzzle-completed');
   document.querySelector<HTMLElement>('.gate')?.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
-  setTimeout(openGate, reduceMotion ? 0 : 1300);
+  if (mobileMusicHandshake) setTimeout(revealGateContinuation, reduceMotion ? 0 : 900);
+  else setTimeout(openGate, reduceMotion ? 0 : 1300);
+}
+
+function revealGateContinuation(): void {
+  const card = document.querySelector<HTMLElement>('#gate-continuation');
+  const button = document.querySelector<HTMLButtonElement>('#gate-continue');
+  if (!card || !button || unlocked) return;
+  card.hidden = false;
+  requestAnimationFrame(() => {
+    card.classList.add('is-visible');
+    button.focus({ preventScroll: true });
+    card.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
+  });
+}
+
+function showGateAudioFailure(): void {
+  const c = t(project.locale);
+  const card = document.querySelector<HTMLElement>('#gate-continuation');
+  const button = document.querySelector<HTMLButtonElement>('#gate-continue');
+  const status = document.querySelector<HTMLElement>('#gate-continuation-status');
+  const fallback = document.querySelector<HTMLElement>('#gate-continuation-fallback');
+  gateAudioAttemptPending = false;
+  audio?.pause();
+  card?.classList.add('has-error');
+  if (button) { button.hidden = true; button.disabled = false; }
+  if (status) { status.hidden = false; status.textContent = c.openingError; }
+  if (fallback) fallback.hidden = false;
+  document.querySelector<HTMLButtonElement>('#gate-continuation-retry')?.focus({ preventScroll: true });
+}
+
+function enterGiftWithMusic(): void {
+  if (gateAudioAttemptPending || unlocked || !audio) {
+    if (!audio && !unlocked) showGateAudioFailure();
+    return;
+  }
+  const c = t(project.locale);
+  const card = document.querySelector<HTMLElement>('#gate-continuation');
+  const button = document.querySelector<HTMLButtonElement>('#gate-continue');
+  const status = document.querySelector<HTMLElement>('#gate-continuation-status');
+  const fallback = document.querySelector<HTMLElement>('#gate-continuation-fallback');
+  gateAudioAttemptPending = true;
+  card?.classList.remove('has-error');
+  if (button) { button.hidden = false; button.disabled = true; }
+  if (status) { status.hidden = false; status.textContent = c.openingLoading; }
+  if (fallback) fallback.hidden = true;
+
+  let playback: Promise<void>;
+  try {
+    // Keep play() directly inside the click handler so Safari treats it as a user gesture.
+    playback = audio.play();
+  } catch {
+    showGateAudioFailure();
+    return;
+  }
+  let timeoutId = 0;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error('Opening audio timed out')), GATE_AUDIO_TIMEOUT_MS);
+  });
+  void Promise.race([playback, timeout]).then(() => {
+    clearTimeout(timeoutId);
+    gateAudioAttemptPending = false;
+    setTimeout(openGate, reduceMotion ? 0 : 260);
+  }).catch(() => {
+    clearTimeout(timeoutId);
+    showGateAudioFailure();
+  });
 }
 
 function startGiftMusic(): void {
@@ -216,9 +297,9 @@ function bindPuzzle(): void {
     const counter = document.querySelector('#puzzle-counter');
     if (counter) counter.textContent = `${solved.size} / ${PUZZLE_PIECES.length}`;
     if (solved.size === PUZZLE_PIECES.length) {
-      // Calling play inside the final puzzle interaction preserves the user gesture
-      // required by Safari/iOS and other autoplay policies.
-      startGiftMusic();
+      // Desktop keeps the immediate soundtrack. Mobile waits for the explicit
+      // continuation button so Safari receives a reliable, dedicated gesture.
+      if (!mobileMusicHandshake) startGiftMusic();
       setTimeout(completePuzzle, reduceMotion ? 0 : 320);
     }
   };
@@ -259,7 +340,7 @@ function bindPuzzle(): void {
 function bindMusic(): void {
   const button = document.querySelector<HTMLButtonElement>('#music-control');
   if (!button || !project.music.audioUrl) return;
-  audio = new Audio(project.music.audioUrl); audio.preload = 'metadata'; audio.loop = true;
+  audio = new Audio(project.music.audioUrl); audio.preload = 'auto'; audio.loop = true;
   const seek = document.querySelector<HTMLInputElement>('#music-seek');
   const current = document.querySelector<HTMLElement>('#music-current');
   const total = document.querySelector<HTMLElement>('#music-total');
@@ -271,6 +352,16 @@ function bindMusic(): void {
   audio.addEventListener('loadedmetadata', () => { if (total && audio) total.textContent = stamp(audio.duration); });
   audio.addEventListener('timeupdate', () => { if (!audio) return; if (current) current.textContent = stamp(audio.currentTime); if (seek && Number.isFinite(audio.duration)) { seek.value = String(audio.currentTime / audio.duration * 100); seek.style.setProperty('--progress', `${seek.value}%`); } });
   seek?.addEventListener('input', () => { if (audio && Number.isFinite(audio.duration)) { audio.currentTime = Number(seek.value) / 100 * audio.duration; seek.style.setProperty('--progress', `${seek.value}%`); } });
+}
+
+function bindGateContinuation(): void {
+  document.querySelector('#gate-continue')?.addEventListener('click', enterGiftWithMusic);
+  document.querySelector('#gate-continuation-retry')?.addEventListener('click', () => {
+    const button = document.querySelector<HTMLButtonElement>('#gate-continue');
+    if (button) button.hidden = false;
+    enterGiftWithMusic();
+  });
+  document.querySelector('#gate-continuation-silent')?.addEventListener('click', openGate);
 }
 
 function bindScrollReveals(root: ParentNode = document): void {
@@ -307,7 +398,7 @@ function bindInvitationPrinter(): void {
 }
 
 function bind(): void {
-  bindPuzzle(); bindMusic();
+  bindPuzzle(); bindMusic(); bindGateContinuation();
   document.querySelector('#say-yes')?.addEventListener('click', async () => {
     await saveYesResponse(project.id);
     const modal = document.querySelector<HTMLElement>('#ticket-modal'); if (!modal) return;
