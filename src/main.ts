@@ -6,27 +6,37 @@ import '@fontsource/nunito-sans/400.css';
 import '@fontsource/nunito-sans/700.css';
 import './style.css';
 import { demo } from './demo';
-import { demoEnglish } from './demoEnglish';
 import { t, eventDate } from './copy';
 import { safeExternalUrl, validateProject, type GiftProject, type Photo } from './project';
 import { saveYesResponse } from './response';
 import { downloadBlob, makeTicket } from './ticket';
+import { applyTheme, isThemeId } from './themes';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing app root');
 
-let project: GiftProject = new URLSearchParams(location.search).get('lang') === 'en' ? demoEnglish : demo;
+// The published gift receives one locale from project data. Language selection belongs
+// to the future customer form, so the recipient page intentionally has no switch.
+const requestedTheme = new URLSearchParams(location.search).get('theme');
+const localTheme = ['localhost', '127.0.0.1'].includes(location.hostname) && isThemeId(requestedTheme) ? requestedTheme : undefined;
+const project: GiftProject = localTheme ? { ...demo, theme: localTheme } : demo;
 const issues = validateProject(project);
 if (issues.length) throw new Error(`Invalid demo: ${issues.join(', ')}`);
 let unlocked = false;
-let visiblePhotos = 4;
 let ticketBlob: Blob | null = null;
 let audio: HTMLAudioElement | null = null;
+let gateCompletionPending = false;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const esc = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] || char);
 const lines = (value: string) => esc(value).replace(/\n/g, '<br>');
 const photo = (item: Photo, className = '') => `<img class="${className}" src="${esc(item.src)}" alt="${esc(item.alt)}" loading="lazy" decoding="async">`;
+const PUZZLE_PATH = 'M80 60H155C150 35 168 18 193 18C218 18 236 35 231 60H320V135C345 130 362 148 362 173C362 198 345 216 320 211V300H231C236 325 218 342 193 342C168 342 150 325 155 300H80V211C55 216 38 198 38 173C38 148 55 130 80 135Z';
+const PUZZLE_PIECES = [
+  { id: 'one', transform: 'translate(0 0)', viewBox: '20 0 360 360', target: 'left:3.8%;top:2.5%;width:34%;height:51%' },
+  { id: 'two', transform: 'translate(600 60) rotate(90 200 180)', viewBox: '620 60 360 360', target: 'left:62%;top:11%;width:34%;height:51%' },
+  { id: 'three', transform: 'translate(280 340) rotate(180 200 180)', viewBox: '300 340 360 360', target: 'left:31%;top:49%;width:34%;height:49%' },
+] as const;
 const icon = (name: string) => {
   const common = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
   const paths: Record<string, string> = {
@@ -40,68 +50,117 @@ const icon = (name: string) => {
 };
 
 function renderGallery(): string {
-  const c = t(project.locale);
-  const shown = project.gallery.photos.slice(0, visiblePhotos);
-  return `<div class="stamp-grid">${shown.map((item, index) => `<figure class="stamp stamp-${index % 4}">${photo(item)}<figcaption>${esc(item.caption)}</figcaption></figure>`).join('')}</div>
-    ${project.gallery.photos.length > 4 ? `<button class="text-link" id="gallery-toggle">${visiblePhotos < project.gallery.photos.length ? c.more : c.less} ${icon('arrow')}</button>` : ''}`;
+  return `<div class="stamp-grid">${project.gallery.photos.map((item, index) => {
+    const media = item.type === 'video'
+      ? `<div class="stamp-media stamp-video"><video autoplay muted loop playsinline preload="metadata" disablepictureinpicture ${item.poster ? `poster="${esc(item.poster)}"` : ''} aria-label="${esc(item.alt)}"><source src="${esc(item.src)}"></video><span class="video-mark">${icon('play')} VIDEO</span></div>`
+      : `<div class="stamp-media">${photo(item)}</div>`;
+    return `<figure class="stamp stamp-${index % 4}" data-reveal style="--reveal-order:${index % 4}">${media}<figcaption>${esc(item.caption)}</figcaption></figure>`;
+  }).join('')}</div>`;
+}
+
+function renderOpeningPuzzle(): string {
+  const item = project.opening.photo;
+  const source = esc(item.src);
+  const alt = esc(item.alt);
+  return `<div class="puzzle-board" id="puzzle-board">
+    <div class="puzzle-photo-mount">
+      <span class="puzzle-tape" aria-hidden="true"></span>
+      <div class="puzzle-visual">
+        <svg class="puzzle-photo" viewBox="0 0 1000 700" role="img" aria-label="${alt}" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <mask id="opening-photo-mask"><rect width="1000" height="700" fill="white"/>${PUZZLE_PIECES.map((piece) => `<path d="${PUZZLE_PATH}" transform="${piece.transform}" fill="black"/>`).join('')}</mask>
+            ${PUZZLE_PIECES.map((piece) => `<clipPath id="opening-board-clip-${piece.id}" clipPathUnits="userSpaceOnUse"><path d="${PUZZLE_PATH}" transform="${piece.transform}"/></clipPath>`).join('')}
+            <linearGradient id="puzzle-hole-fill" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="var(--theme-shadow)"/><stop offset=".42" stop-color="var(--theme-border)"/><stop offset="1" stop-color="var(--theme-tape)"/>
+            </linearGradient>
+            <filter id="puzzle-hole-shadow" x="-30%" y="-30%" width="160%" height="170%">
+              <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#3b1b17" flood-opacity=".42"/>
+            </filter>
+          </defs>
+          <image href="${source}" width="1000" height="700" preserveAspectRatio="xMidYMid slice" mask="url(#opening-photo-mask)"/>
+          ${PUZZLE_PIECES.map((piece) => `<image class="puzzle-filled-piece" data-filled-piece="${piece.id}" href="${source}" width="1000" height="700" preserveAspectRatio="xMidYMid slice" clip-path="url(#opening-board-clip-${piece.id})"/>`).join('')}
+          <image class="puzzle-complete-photo" href="${source}" width="1000" height="700" preserveAspectRatio="xMidYMid slice"/>
+          ${PUZZLE_PIECES.map((piece) => `<path class="puzzle-empty-shape" data-empty-piece="${piece.id}" d="${PUZZLE_PATH}" transform="${piece.transform}"/>`).join('')}
+          <rect class="puzzle-photo-line" x="3" y="3" width="994" height="694" rx="10"/>
+        </svg>
+        ${PUZZLE_PIECES.map((piece) => `<span class="puzzle-target" id="puzzle-hole-${piece.id}" data-piece="${piece.id}" style="${piece.target}" aria-hidden="true"></span>`).join('')}
+      </div>
+      <p class="puzzle-caption">${esc(item.caption)}</p>
+    </div>
+  </div>`;
+}
+
+function renderPuzzlePieces(label: string): string {
+  const item = project.opening.photo;
+  return PUZZLE_PIECES.map((piece, index) => `<button class="puzzle-piece" id="puzzle-piece-${piece.id}" data-piece="${piece.id}" aria-label="${esc(label)} ${index + 1}" type="button">
+      <svg viewBox="${piece.viewBox}" aria-hidden="true">
+        <defs><clipPath id="opening-piece-clip-${piece.id}" clipPathUnits="userSpaceOnUse"><path d="${PUZZLE_PATH}" transform="${piece.transform}"/></clipPath></defs>
+        <image href="${esc(item.src)}" width="1000" height="700" preserveAspectRatio="xMidYMid slice" clip-path="url(#opening-piece-clip-${piece.id})"/>
+        <path class="puzzle-piece-line" d="${PUZZLE_PATH}" transform="${piece.transform}"/>
+      </svg>
+    </button>`).join('');
 }
 
 function render(): void {
   const c = t(project.locale);
   const date = eventDate(project.invitation.date, project.locale);
   document.documentElement.lang = project.locale;
+  applyTheme(project.theme);
   document.title = `${project.invitation.title} · The Plan`;
+  document.body.classList.toggle('gate-open', !unlocked);
   const mapUrl = safeExternalUrl(project.invitation.mapsUrl);
   app!.innerHTML = `
     <div class="grain" aria-hidden="true"></div>
     <div class="demo-ribbon">${c.demo}</div>
-    <button class="language-switch" id="language-switch" aria-label="${project.locale === 'id' ? 'Switch to English' : 'Ganti ke Bahasa Indonesia'}">${project.locale === 'id' ? 'EN' : 'ID'}</button>
     <div class="gift-shell ${unlocked ? 'is-open' : ''}">
       <section class="gate" id="gate" aria-label="Opening puzzle">
         <div class="gate-paper">
           <div class="small-star star-a">✳</div><div class="small-star star-b">✳</div>
           <p class="eyebrow red">${esc(project.opening.eyebrow)}</p>
           <h1>${lines(project.opening.title)}</h1>
-          <div class="puzzle-board" id="puzzle-board">
-            <div class="gate-photo-frame">${photo(project.opening.photo)}<span>${esc(project.opening.photo.caption)}</span></div>
-            <div class="puzzle-hole" id="puzzle-hole"><span>?</span></div>
-          </div>
+          ${renderOpeningPuzzle()}
           <p class="gate-note">${esc(project.opening.note)}</p>
           <p class="gate-instruction">${c.puzzleHint}</p>
-          <div class="puzzle-tray"><button class="puzzle-piece" id="puzzle-piece" aria-label="${c.open}" type="button"><span>♡</span></button><span class="tray-arrow">↗</span></div>
+          <div class="puzzle-progress"><span>${c.puzzleProgress}</span><strong id="puzzle-counter">0 / ${PUZZLE_PIECES.length}</strong></div>
+          <div class="puzzle-tray">${renderPuzzlePieces(c.open)}</div>
           <button class="assist-link" id="gate-assist">${c.openAssist}</button>
         </div>
       </section>
 
       <main id="gift-content" ${unlocked ? '' : 'inert'}>
         <section class="hero section-pad" id="hero">
-          <div class="hero-topline"><span>THE PLAN</span><span>NO. 001 / MADE WITH LOVE</span></div>
+          <div class="hero-topline" data-reveal><span>THE PLAN</span><span>NO. 001 / MADE WITH LOVE</span></div>
           <div class="hero-composition">
-            <div class="hero-copy"><span class="label-chip">${esc(project.hero.eyebrow)}</span><h2>${lines(project.hero.title)}</h2><p>${esc(project.hero.subtitle)}</p></div>
-            <figure class="hero-polaroid"><span class="tape tape-one"></span>${photo(project.hero.photo)}<figcaption>${esc(project.hero.photo.caption)}</figcaption></figure>
+            <div class="hero-copy" data-reveal><span class="label-chip">${esc(project.hero.eyebrow)}</span><h2>${lines(project.hero.title)}</h2><p>${esc(project.hero.subtitle)}</p></div>
+            <figure class="hero-photo-frame" data-reveal><span class="hero-tape" aria-hidden="true"></span><div class="hero-photo-media">${photo(project.hero.photo)}</div><figcaption>${esc(project.hero.photo.caption)}</figcaption></figure>
           </div>
-          <div class="music-card"><div class="music-cover">${photo(project.music.cover)}</div><div class="music-copy"><span>OUR SOUNDTRACK</span><strong>${esc(project.music.title)}</strong><small>${esc(project.music.artist)}</small></div><button id="music-control" class="music-button" aria-label="${c.play}" ${project.music.audioUrl ? '' : 'disabled'}>${icon('play')}</button></div>
-          ${project.music.audioUrl ? '<div class="music-progress"><span id="music-current">0:00</span><input id="music-seek" aria-label="Song progress" type="range" min="0" max="100" value="0"><span id="music-total">0:00</span></div>' : `<p class="music-note">${c.noAudio}</p>`}
+          <div class="music-player" id="music-player" data-reveal>
+            <div class="music-player-main"><div class="music-cover">${photo(project.music.cover)}</div><div class="music-copy"><span>NOW PLAYING</span><strong>${esc(project.music.title)}</strong><small>${esc(project.music.artist)}</small></div><div class="music-actions"><span class="music-more" aria-hidden="true"><i></i><i></i><i></i></span><button id="music-control" class="music-button" aria-label="${c.play}" ${project.music.audioUrl ? '' : 'disabled'}>${icon('play')}</button></div></div>
+            ${project.music.audioUrl ? '<div class="music-progress"><span id="music-current">0:00</span><input id="music-seek" aria-label="Song progress" type="range" min="0" max="100" step="0.1" value="0"><span id="music-total">0:00</span></div>' : `<p class="music-note">${c.noAudio}</p>`}
+          </div>
           <div class="scroll-cue">${c.scroll}<span>↓</span></div>
         </section>
 
-        <section class="invitation section-pad" id="invitation"><div class="section-tag">01 / ${c.invitation}</div>
-          <div class="invitation-paper"><div class="paper-tack">✳</div><p class="scribble">a little something for us</p><h2>${esc(project.invitation.title)}</h2><p class="invitation-message">${esc(project.invitation.message)}</p>
-          <div class="event-grid"><div class="calendar-art"><span>${esc(date.month)}</span><strong>${esc(date.day)}</strong><em>${esc(date.weekday)}</em></div><div class="event-details">
-            <div><span>${c.date}</span><strong>${esc(date.full)}</strong></div><div><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong></div>
-            ${project.invitation.venue ? `<div><span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>${project.invitation.address ? `<small>${esc(project.invitation.address)}</small>` : ''}${mapUrl ? `<a href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">${icon('pin')}${c.map}</a>` : ''}</div>` : ''}
-            ${project.invitation.dressCode ? `<div><span>${c.dress}</span><strong>${esc(project.invitation.dressCode)}</strong></div>` : ''}
-          </div></div></div>
-          ${project.invitation.rundown.length ? `<div class="rundown"><div class="rundown-title"><span>${c.plan}</span><i>✦</i></div><div class="rundown-list">${project.invitation.rundown.map((item, index) => `<div class="rundown-item"><time>${esc(item.time)}</time><span class="rundown-dot"></span><div><strong>${esc(item.title)}</strong>${item.note ? `<p>${esc(item.note)}</p>` : ''}</div><b>0${index + 1}</b></div>`).join('')}</div></div>` : ''}
+        <section class="invitation section-pad" id="invitation"><div class="section-tag" data-reveal>01 / ${c.invitation}</div>
+          <div class="invitation-print-stage">
+            <div class="invitation-printer-machine" aria-hidden="true"><span>THE PLAN PRESS</span><i></i><b></b></div>
+            <div class="invitation-printer-slot" aria-hidden="true"></div>
+            <div class="invitation-paper-sheet"><div class="invitation-paper"><div class="paper-tack">✳</div><p class="scribble">a little something for us</p><h2>${esc(project.invitation.title)}</h2><p class="invitation-message">${esc(project.invitation.message)}</p>
+            <div class="event-grid"><div class="calendar-art"><span>${esc(date.month)}</span><strong>${esc(date.day)}</strong><em>${esc(date.weekday)}</em></div><div class="event-details">
+              <div><span>${c.date}</span><strong>${esc(date.full)}</strong></div><div><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong></div>
+              ${project.invitation.venue ? `<div><span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>${project.invitation.address ? `<small>${esc(project.invitation.address)}</small>` : ''}${mapUrl ? `<a href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">${icon('pin')}${c.map}</a>` : ''}</div>` : ''}
+              ${project.invitation.dressCode ? `<div><span>${c.dress}</span><strong>${esc(project.invitation.dressCode)}</strong></div>` : ''}
+            </div></div></div></div>
+          </div>
+          ${project.invitation.rundown.length ? `<div class="rundown"><div class="rundown-title" data-reveal><span>${c.plan}</span><i>✦</i></div><div class="rundown-list">${project.invitation.rundown.map((item, index) => `<div class="rundown-item" data-reveal style="--reveal-order:${index}"><time>${esc(item.time)}</time><span class="rundown-dot"></span><div><strong>${esc(item.title)}</strong>${item.note ? `<p>${esc(item.note)}</p>` : ''}</div><b>0${index + 1}</b></div>`).join('')}</div></div>` : ''}
         </section>
 
-        <section class="letter-section section-pad"><div class="section-tag">02 / ${c.letter}</div><div class="letter-paper"><div class="letter-tape"></div><span class="letter-stamp">with all my heart ♡</span><h2>${esc(project.letter.title)}</h2><div class="letter-body">${project.letter.paragraphs.map(p => `<p>${esc(p)}</p>`).join('')}</div><p class="letter-signoff">${esc(project.letter.signoff)}</p></div></section>
-        <section class="gallery-section section-pad"><div class="section-tag">03 / ${c.gallery}</div><div class="gallery-heading"><h2>${esc(project.gallery.title)}</h2><p>${esc(project.gallery.subtitle)}</p></div><div id="gallery-content">${renderGallery()}</div></section>
-        <section class="closing-section section-pad"><div class="closing-paper"><p class="scribble">one more thing...</p><h2>${esc(project.closing.title)}</h2><p>${esc(project.closing.message)}</p><div class="closing-divider">✳ &nbsp; ✳ &nbsp; ✳</div><h3>${esc(project.closing.question)}</h3><button id="say-yes" class="yes-button">${c.yes} ${icon('arrow')}</button><small>THE PLAN · ${date.full.toUpperCase()}</small></div></section>
-        <footer>made with love · for you, always.</footer>
+        <section class="letter-section section-pad"><div class="section-tag" data-reveal>02 / ${c.letter}</div><div class="letter-paper" data-reveal><div class="letter-tape"></div><span class="letter-stamp">with all my heart ♡</span><h2>${esc(project.letter.title)}</h2><div class="letter-body">${project.letter.paragraphs.map((p, index) => `<p data-reveal style="--reveal-order:${index}">${esc(p)}</p>`).join('')}</div><p class="letter-signoff" data-reveal>${esc(project.letter.signoff)}</p></div></section>
+        <section class="gallery-section section-pad"><div class="section-tag" data-reveal>03 / ${c.gallery}</div><div class="gallery-heading" data-reveal><h2>${esc(project.gallery.title)}</h2><p>${esc(project.gallery.subtitle)}</p></div><div id="gallery-content">${renderGallery()}</div></section>
+        <section class="closing-section section-pad"><div class="closing-paper" data-reveal><p class="scribble">one more thing...</p><h2>${esc(project.closing.title)}</h2><p>${esc(project.closing.message)}</p><div class="closing-divider">✳ &nbsp; ✳ &nbsp; ✳</div><h3>${esc(project.closing.question)}</h3><button id="say-yes" class="yes-button">${c.yes} ${icon('arrow')}</button><small>THE PLAN · ${date.full.toUpperCase()}</small></div></section>
       </main>
     </div>
-    <div class="modal-backdrop" id="ticket-modal" hidden><div class="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-title"><button class="modal-close" id="ticket-close" aria-label="${c.close}">${icon('close')}</button><div class="printer"><div class="printer-top"><span>THE PLAN</span><span class="printer-light"></span></div><div class="printer-slot"></div><div class="printed-card" id="printed-card"><span class="ticket-stamp">THE PLAN<br>FOR YOU</span><span class="ticket-kicker">A LITTLE DAY, PLANNED WITH LOVE</span><h3>${esc(project.invitation.title)}</h3><div class="ticket-rule"></div><span>${c.date}</span><strong>${esc(date.full)}</strong><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong>${project.invitation.venue ? `<span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>` : ''}<em>${esc(project.closing.ticketMessage)}</em><small>THE PLAN · FOR YOU, ALWAYS.</small></div></div><h2 id="ticket-title">${c.ready}</h2><p class="ticket-feedback" id="ticket-feedback">${c.saved}</p><div class="ticket-actions"><button id="ticket-download">${icon('download')}${c.download}</button><button id="ticket-share">${icon('share')}${c.share}</button></div></div></div>`;
+    <div class="modal-backdrop" id="ticket-modal" hidden><div class="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-title"><button class="modal-close" id="ticket-close" aria-label="${c.close}">${icon('close')}</button><div class="printer"><div class="printer-top"><span>THE PLAN</span><span class="printer-light"></span></div><div class="printer-slot"></div><div class="printed-card" id="printed-card"><span class="ticket-stamp">THE PLAN<br>FOR YOU</span><span class="ticket-kicker">A LITTLE DAY, PLANNED WITH LOVE</span><h3>${esc(project.invitation.title)}</h3><div class="ticket-rule"></div><span>${c.date}</span><strong>${esc(date.full)}</strong><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong>${project.invitation.venue ? `<span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>` : ''}<em>${esc(project.closing.ticketMessage)}</em><small>THE PLAN · KEEP THIS DATE.</small></div></div><h2 id="ticket-title">${c.ready}</h2><p class="ticket-feedback" id="ticket-feedback">${c.saved}</p><div class="ticket-actions"><button id="ticket-download">${icon('download')}${c.download}</button><button id="ticket-share">${icon('share')}${c.share}</button></div></div></div>`;
   bind();
 }
 
@@ -109,55 +168,145 @@ function openGate(): void {
   if (unlocked) return;
   unlocked = true;
   const gate = document.querySelector<HTMLElement>('#gate');
+  const gift = document.querySelector<HTMLElement>('#gift-content');
+  gift?.removeAttribute('inert');
+  document.body.classList.remove('gate-open');
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   gate?.classList.add('gate-exit');
-  setTimeout(() => { gate?.remove(); document.querySelector('#gift-content')?.removeAttribute('inert'); document.querySelector('#hero')?.scrollIntoView({ behavior: reduceMotion ? 'instant' : 'smooth' }); }, reduceMotion ? 0 : 540);
+  setTimeout(() => {
+    gate?.remove();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    bindScrollReveals();
+    bindInvitationPrinter();
+  }, reduceMotion ? 0 : 620);
+}
+
+function completePuzzle(): void {
+  if (gateCompletionPending || unlocked) return;
+  gateCompletionPending = true;
+  document.querySelector('#puzzle-board')?.classList.add('is-complete');
+  document.querySelector('.gate-paper')?.classList.add('puzzle-completed');
+  document.querySelector<HTMLElement>('.gate')?.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  setTimeout(openGate, reduceMotion ? 0 : 1300);
+}
+
+function startGiftMusic(): void {
+  if (!audio || !audio.paused) return;
+  const button = document.querySelector<HTMLButtonElement>('#music-control');
+  void audio.play().catch(() => {
+    if (button) button.title = project.locale === 'id' ? 'Ketuk untuk memutar musik' : 'Tap to play the music';
+  });
 }
 
 function bindPuzzle(): void {
-  const piece = document.querySelector<HTMLButtonElement>('#puzzle-piece');
-  const hole = document.querySelector<HTMLElement>('#puzzle-hole');
-  if (!piece || !hole) return;
-  let startX = 0; let startY = 0; let moved = false;
-  piece.addEventListener('pointerdown', (event) => { startX = event.clientX; startY = event.clientY; moved = false; piece.setPointerCapture(event.pointerId); piece.classList.add('dragging'); });
-  piece.addEventListener('pointermove', (event) => {
-    if (!piece.hasPointerCapture(event.pointerId)) return;
-    const dx = event.clientX - startX; const dy = event.clientY - startY;
-    if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
-    piece.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx * 0.035}deg)`;
-    const a = piece.getBoundingClientRect(); const b = hole.getBoundingClientRect();
-    hole.classList.toggle('near', a.left < b.right + 24 && a.right > b.left - 24 && a.top < b.bottom + 24 && a.bottom > b.top - 24);
+  const pieces = [...document.querySelectorAll<HTMLButtonElement>('.puzzle-piece')];
+  if (!pieces.length) return;
+  const solved = new Set<string>();
+
+  const lockPiece = (piece: HTMLButtonElement, hole: HTMLElement) => {
+    const id = piece.dataset.piece;
+    if (!id || solved.has(id)) return;
+    solved.add(id);
+    hole.classList.remove('near');
+    hole.classList.add('solved');
+    piece.classList.add('solved');
+    document.querySelector<SVGElement>(`[data-filled-piece="${id}"]`)?.classList.add('is-filled');
+    document.querySelector<SVGElement>(`[data-empty-piece="${id}"]`)?.classList.add('is-filled');
+    const counter = document.querySelector('#puzzle-counter');
+    if (counter) counter.textContent = `${solved.size} / ${PUZZLE_PIECES.length}`;
+    if (solved.size === PUZZLE_PIECES.length) {
+      // Calling play inside the final puzzle interaction preserves the user gesture
+      // required by Safari/iOS and other autoplay policies.
+      startGiftMusic();
+      setTimeout(completePuzzle, reduceMotion ? 0 : 320);
+    }
+  };
+
+  pieces.forEach((piece) => {
+    const id = piece.dataset.piece;
+    const hole = id ? document.querySelector<HTMLElement>(`#puzzle-hole-${id}`) : null;
+    if (!hole) return;
+    let startX = 0; let startY = 0; let moved = false;
+    piece.addEventListener('pointerdown', (event) => { startX = event.clientX; startY = event.clientY; moved = false; piece.setPointerCapture(event.pointerId); piece.classList.add('dragging'); });
+    piece.addEventListener('pointermove', (event) => {
+      if (!piece.hasPointerCapture(event.pointerId)) return;
+      const dx = event.clientX - startX; const dy = event.clientY - startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+      piece.style.transform = `translate(${dx}px, ${dy}px) rotate(${dx * 0.025}deg)`;
+      const a = piece.getBoundingClientRect(); const b = hole.getBoundingClientRect();
+      hole.classList.toggle('near', a.left < b.right + 18 && a.right > b.left - 18 && a.top < b.bottom + 18 && a.bottom > b.top - 18);
+    });
+    piece.addEventListener('pointerup', (event) => {
+      piece.classList.remove('dragging');
+      const a = piece.getBoundingClientRect(); const b = hole.getBoundingClientRect();
+      if (moved && a.left < b.right + 18 && a.right > b.left - 18 && a.top < b.bottom + 18 && a.bottom > b.top - 18) lockPiece(piece, hole);
+      else { piece.style.transform = ''; hole.classList.remove('near'); }
+      try { piece.releasePointerCapture(event.pointerId); } catch { /* pointer may already be released */ }
+    });
+    piece.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); lockPiece(piece, hole); } });
   });
-  piece.addEventListener('pointerup', (event) => {
-    piece.classList.remove('dragging'); if (!moved) return;
-    const a = piece.getBoundingClientRect(); const b = hole.getBoundingClientRect();
-    if (a.left < b.right + 24 && a.right > b.left - 24 && a.top < b.bottom + 24 && a.bottom > b.top - 24) { hole.classList.add('solved'); piece.classList.add('solved'); setTimeout(openGate, 360); }
-    else { piece.style.transform = ''; hole.classList.remove('near'); }
-    try { piece.releasePointerCapture(event.pointerId); } catch { /* pointer may already be released */ }
+
+  document.querySelector('#gate-assist')?.addEventListener('click', () => {
+    pieces.forEach((piece) => {
+      const id = piece.dataset.piece;
+      const hole = id ? document.querySelector<HTMLElement>(`#puzzle-hole-${id}`) : null;
+      if (hole) lockPiece(piece, hole);
+    });
   });
-  piece.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openGate(); } });
-  document.querySelector('#gate-assist')?.addEventListener('click', openGate);
 }
 
 function bindMusic(): void {
   const button = document.querySelector<HTMLButtonElement>('#music-control');
   if (!button || !project.music.audioUrl) return;
-  audio = new Audio(project.music.audioUrl); audio.preload = 'metadata';
+  audio = new Audio(project.music.audioUrl); audio.preload = 'metadata'; audio.loop = true;
   const seek = document.querySelector<HTMLInputElement>('#music-seek');
   const current = document.querySelector<HTMLElement>('#music-current');
   const total = document.querySelector<HTMLElement>('#music-total');
+  const player = document.querySelector<HTMLElement>('#music-player');
   const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
   button.addEventListener('click', async () => { if (!audio) return; if (audio.paused) { try { await audio.play(); } catch { button.title = 'Audio unavailable'; } } else audio.pause(); });
-  audio.addEventListener('play', () => { button.innerHTML = icon('pause'); button.setAttribute('aria-label', t(project.locale).pause); });
-  audio.addEventListener('pause', () => { button.innerHTML = icon('play'); button.setAttribute('aria-label', t(project.locale).play); });
+  audio.addEventListener('play', () => { button.innerHTML = icon('pause'); button.setAttribute('aria-label', t(project.locale).pause); player?.classList.add('is-playing'); });
+  audio.addEventListener('pause', () => { button.innerHTML = icon('play'); button.setAttribute('aria-label', t(project.locale).play); player?.classList.remove('is-playing'); });
   audio.addEventListener('loadedmetadata', () => { if (total && audio) total.textContent = stamp(audio.duration); });
-  audio.addEventListener('timeupdate', () => { if (!audio) return; if (current) current.textContent = stamp(audio.currentTime); if (seek && Number.isFinite(audio.duration)) seek.value = String(audio.currentTime / audio.duration * 100); });
-  seek?.addEventListener('input', () => { if (audio && Number.isFinite(audio.duration)) audio.currentTime = Number(seek.value) / 100 * audio.duration; });
+  audio.addEventListener('timeupdate', () => { if (!audio) return; if (current) current.textContent = stamp(audio.currentTime); if (seek && Number.isFinite(audio.duration)) { seek.value = String(audio.currentTime / audio.duration * 100); seek.style.setProperty('--progress', `${seek.value}%`); } });
+  seek?.addEventListener('input', () => { if (audio && Number.isFinite(audio.duration)) { audio.currentTime = Number(seek.value) / 100 * audio.duration; seek.style.setProperty('--progress', `${seek.value}%`); } });
+}
+
+function bindScrollReveals(root: ParentNode = document): void {
+  const nodes = [...root.querySelectorAll<HTMLElement>('[data-reveal]:not(.is-visible)')];
+  if (!nodes.length) return;
+  document.querySelector('#gift-content')?.classList.add('motion-ready');
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    nodes.forEach((node) => node.classList.add('is-visible'));
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      (entry.target as HTMLElement).classList.add('is-visible');
+      observer.unobserve(entry.target);
+    });
+  }, { threshold: .12, rootMargin: '0px 0px -7% 0px' });
+  nodes.forEach((node) => observer.observe(node));
+}
+
+function bindInvitationPrinter(): void {
+  const stage = document.querySelector<HTMLElement>('.invitation-print-stage');
+  if (!stage || stage.classList.contains('is-printing')) return;
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    stage.classList.add('is-printing');
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    stage.classList.add('is-printing');
+    observer.disconnect();
+  }, { threshold: 0, rootMargin: '0px 0px -42% 0px' });
+  observer.observe(stage);
 }
 
 function bind(): void {
   bindPuzzle(); bindMusic();
-  document.querySelector('#language-switch')?.addEventListener('click', () => { audio?.pause(); audio = null; project = project.locale === 'id' ? demoEnglish : demo; visiblePhotos = 4; history.replaceState(null, '', `${location.pathname}?lang=${project.locale}`); render(); });
-  bindGallery();
   document.querySelector('#say-yes')?.addEventListener('click', async () => {
     await saveYesResponse(project.id);
     const modal = document.querySelector<HTMLElement>('#ticket-modal'); if (!modal) return;
@@ -179,7 +328,6 @@ function bind(): void {
   });
 }
 
-function bindGallery(): void { document.querySelector('#gallery-toggle')?.addEventListener('click', () => { visiblePhotos = visiblePhotos < project.gallery.photos.length ? Math.min(visiblePhotos + 4, project.gallery.photos.length) : 4; const target = document.querySelector('#gallery-content'); if (target) target.innerHTML = renderGallery(); bindGallery(); }); }
 function feedback(message: string): void { const el = document.querySelector('#ticket-feedback'); if (el) el.textContent = message; }
 function closeTicket(): void { const modal = document.querySelector<HTMLElement>('#ticket-modal'); if (!modal || modal.hidden) return; modal.hidden = true; document.body.classList.remove('modal-open'); document.querySelector<HTMLButtonElement>('#say-yes')?.focus(); }
 

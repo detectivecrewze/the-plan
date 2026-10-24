@@ -5,8 +5,8 @@ The Plan is a premium done-for-you scrapbook invitation for couples. The recipie
 ## Locked product decisions
 
 - Couples first; recipient and sender names optional. No guest list or per-guest names.
-- Cream paper and deep red, cut-paper collage, stamps, handwritten notes. Kalam headlines, Caveat letter and annotations, legible sans for practical details.
-- Short drag-to-place puzzle with keyboard and tap alternative; one scrollable gift.
+- Cut-paper collage, stamps, handwritten notes. Kalam headlines, Caveat letter and annotations, legible sans for practical details. Customer chooses one of the curated scrapbook palettes stored as `project.theme`: Burgundy Keepsake, Antique Rose, Sage Botanical, Espresso Journal, Midnight Navy, or Lavender Dusk.
+- Three-piece drag-to-place photo puzzle with keyboard and tap alternative; one scrollable gift.
 - Date and start time required. End time, venue, address, map, and dress code optional. Venue is revealed in the invitation when present.
 - Gallery has no product count cap; render images progressively.
 - One affirmative response, stored and later visible to admin/owner. No decline action.
@@ -23,4 +23,4 @@ The Plan is a premium done-for-you scrapbook invitation for couples. The recipie
 
 ## Data contract and infrastructure
 
-`GiftProject` in `src/project.ts` is the shared content contract. Stage 1 uses demo data; subsequent stages supply it from a Cloudflare Worker. `order:{orderId}` stores raw form responses, `draft:{projectId}` stores internal editing state, `gift:{projectId}` stores published gift. Media is isolated in R2 at `the-plan/{projectId}/`. Static frontend uses Vite and TypeScript; the API uses Worker. Deployed frontend can follow the existing Vercel static pattern.
+`GiftProject` in `src/project.ts` is the shared content contract. Theme definitions live in `src/themes.ts`; forms and Studio must store a theme ID rather than raw colors. Stage 1 uses demo data; subsequent stages supply it from a Cloudflare Worker. `order:{orderId}` stores raw form responses, `draft:{projectId}` stores internal editing state, `gift:{projectId}` stores published gift. Media is isolated in R2 at `the-plan/{projectId}/`. Static frontend uses Vite and TypeScript; the API uses Worker. Deployed frontend can follow the existing Vercel static pattern.
