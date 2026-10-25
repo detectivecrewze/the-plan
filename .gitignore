@@ -4,3 +4,5 @@ dist/
 .vercel/
 *.log
 preview/
+.dev.vars
+.wrangler/

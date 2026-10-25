@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["@cloudflare/workers-types"], "lib": ["ES2022", "DOM"] },
+  "include": ["worker", "src/project.ts", "src/projectSchema.ts", "src/themes.ts", "src/admin/types.ts", "src/form/types.ts", "src/form/schema.ts"]
+}

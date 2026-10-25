@@ -4,7 +4,7 @@ import '@fontsource/chewy/400.css';
 import '@fontsource/comic-neue/400.css';
 import '@fontsource/comic-neue/700.css';
 import './style.css';
-import { demo } from './demo';
+import { loadGiftProject, isPreview } from './giftData';
 import { t, eventDate } from './copy';
 import { safeExternalUrl, validateProject, type GiftProject, type Photo } from './project';
 import { saveYesResponse } from './response';
@@ -17,11 +17,17 @@ if (!app) throw new Error('Missing app root');
 // The published gift receives one locale from project data. Language selection belongs
 // to the future customer form, so the recipient page intentionally has no switch.
 const requestedTheme = new URLSearchParams(location.search).get('theme');
-const localTheme = ['localhost', '127.0.0.1'].includes(location.hostname) && isThemeId(requestedTheme) ? requestedTheme : undefined;
-const project: GiftProject = localTheme ? { ...demo, theme: localTheme } : demo;
+const samplePreview = location.pathname === '/' && new URLSearchParams(location.search).get('sample') === '1';
+const localTheme = (['localhost', '127.0.0.1'].includes(location.hostname) || samplePreview) && isThemeId(requestedTheme) ? requestedTheme : undefined;
+const loadedProject = await loadGiftProject();
+const sourceProject: GiftProject = localTheme ? { ...loadedProject, theme: localTheme } : loadedProject;
+const enteredEndTime = sourceProject.invitation.endTime?.trim();
+const project: GiftProject = { ...sourceProject, invitation: { ...sourceProject.invitation, endTime: !enteredEndTime || enteredEndTime.toUpperCase() === 'END' ? 'END' : enteredEndTime } };
 const issues = validateProject(project);
 if (issues.length) throw new Error(`Invalid demo: ${issues.join(', ')}`);
-let unlocked = false;
+const previewTarget = isPreview ? new URLSearchParams(location.search).get('section') : null;
+const previewTargets = ['opening', 'hero', 'music-player', 'invitation', 'letter', 'gallery', 'closing'];
+let unlocked = Boolean(previewTarget && previewTarget !== 'opening' && previewTargets.includes(previewTarget));
 let ticketBlob: Blob | null = null;
 let audio: HTMLAudioElement | null = null;
 let gateCompletionPending = false;
@@ -59,7 +65,7 @@ const icon = (name: string) => {
 function renderGallery(): string {
   return `<div class="stamp-grid">${project.gallery.photos.map((item, index) => {
     const media = item.type === 'video'
-      ? `<div class="stamp-media stamp-video"><video autoplay muted loop playsinline preload="metadata" disablepictureinpicture ${item.poster ? `poster="${esc(item.poster)}"` : ''} aria-label="${esc(item.alt)}"><source src="${esc(item.src)}"></video><span class="video-mark">${icon('play')} VIDEO</span></div>`
+      ? `<div class="stamp-media stamp-video"><video autoplay muted loop playsinline preload="metadata" disablepictureinpicture ${item.poster ? `poster="${esc(item.poster)}"` : ''} aria-label="${esc(item.alt)}"><source src="${esc(item.src)}"></video><span class="video-mark">${icon('play')} ${t(project.locale).video}</span></div>`
       : `<div class="stamp-media">${photo(item)}</div>`;
     return `<figure class="stamp stamp-${index % 4}" data-reveal style="--reveal-order:${index % 4}">${media}<figcaption>${esc(item.caption)}</figcaption></figure>`;
   }).join('')}</div>`;
@@ -119,7 +125,7 @@ function render(): void {
   app!.innerHTML = `
     <div class="grain" aria-hidden="true"></div>
     <div class="gift-shell ${unlocked ? 'is-open' : ''}">
-      <section class="gate" id="gate" aria-label="Opening puzzle">
+      <section class="gate" id="gate" aria-label="${c.openingAria}">
         <div class="gate-paper">
           <div class="small-star star-a">${icon('spark')}</div><div class="small-star star-b">${icon('spark')}</div>
           <p class="eyebrow red">${esc(project.opening.eyebrow)}</p>
@@ -145,14 +151,14 @@ function render(): void {
 
       <main id="gift-content" ${unlocked ? '' : 'inert'}>
         <section class="hero section-pad" id="hero">
-          <div class="hero-topline" data-reveal><span>THE PLAN</span><span>NO. 001 / MADE WITH LOVE</span></div>
+          <div class="hero-topline" data-reveal><span>THE PLAN</span><span>NO. 001 / ${c.madeWithLove}</span></div>
           <div class="hero-composition">
             <div class="hero-copy" data-reveal><span class="label-chip">${esc(project.hero.eyebrow)}</span><h2>${lines(project.hero.title)}</h2><p>${esc(project.hero.subtitle)}</p></div>
             <figure class="hero-photo-frame" data-reveal><span class="hero-tape" aria-hidden="true"></span><div class="hero-photo-media">${photo(project.hero.photo)}</div><figcaption>${esc(project.hero.photo.caption)}</figcaption></figure>
           </div>
           <div class="music-player" id="music-player" data-reveal>
-            <div class="music-player-main"><div class="music-cover">${photo(project.music.cover)}</div><div class="music-copy"><span>NOW PLAYING</span><strong>${esc(project.music.title)}</strong><small>${esc(project.music.artist)}</small></div><div class="music-actions"><span class="music-more" aria-hidden="true"><i></i><i></i><i></i></span><button id="music-control" class="music-button" aria-label="${c.play}" ${project.music.audioUrl ? '' : 'disabled'}>${icon('play')}</button></div></div>
-            ${project.music.audioUrl ? '<div class="music-progress"><span id="music-current">0:00</span><input id="music-seek" aria-label="Song progress" type="range" min="0" max="100" step="0.1" value="0"><span id="music-total">0:00</span></div>' : `<p class="music-note">${c.noAudio}</p>`}
+            <div class="music-player-main"><div class="music-cover">${photo(project.music.cover)}</div><div class="music-copy"><span>${c.nowPlaying}</span><strong>${esc(project.music.title)}</strong><small>${esc(project.music.artist)}</small></div><div class="music-actions"><span class="music-more" aria-hidden="true"><i></i><i></i><i></i></span><button id="music-control" class="music-button" aria-label="${c.play}" ${project.music.audioUrl ? '' : 'disabled'}>${icon('play')}</button></div></div>
+            ${project.music.audioUrl ? `<div class="music-progress"><span id="music-current">0:00</span><input id="music-seek" aria-label="${c.songProgress}" type="range" min="0" max="100" step="0.1" value="0"><span id="music-total">0:00</span></div>` : `<p class="music-note">${c.noAudio}</p>`}
           </div>
           <div class="scroll-cue">${c.scroll}<span>${icon('down')}</span></div>
         </section>
@@ -161,7 +167,7 @@ function render(): void {
           <div class="invitation-print-stage">
             <div class="invitation-printer-machine" aria-hidden="true"><span>THE PLAN PRESS</span><i></i><b></b></div>
             <div class="invitation-printer-slot" aria-hidden="true"></div>
-            <div class="invitation-paper-sheet"><div class="invitation-paper"><div class="paper-tack">${icon('spark')}</div><p class="scribble">a little something for us</p><h2>${esc(project.invitation.title)}</h2><p class="invitation-message">${esc(project.invitation.message)}</p>
+            <div class="invitation-paper-sheet"><div class="invitation-paper"><div class="paper-tack">${icon('spark')}</div><p class="scribble">${c.invitationNote}</p><h2>${esc(project.invitation.title)}</h2><p class="invitation-message">${esc(project.invitation.message)}</p>
             <div class="event-grid"><div class="calendar-art"><span>${esc(date.month)}</span><strong>${esc(date.day)}</strong><em>${esc(date.weekday)}</em></div><div class="event-details">
               <div><span>${c.date}</span><strong>${esc(date.full)}</strong></div><div><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong></div>
               ${project.invitation.venue ? `<div><span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>${project.invitation.address ? `<small>${esc(project.invitation.address)}</small>` : ''}${mapUrl ? `<a href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">${icon('pin')}${c.map}</a>` : ''}</div>` : ''}
@@ -171,13 +177,22 @@ function render(): void {
           ${project.invitation.rundown.length ? `<div class="rundown"><div class="rundown-title" data-reveal><span>${c.plan}</span><i>${icon('spark')}</i></div><div class="rundown-list">${project.invitation.rundown.map((item, index) => `<div class="rundown-item" data-reveal style="--reveal-order:${index}"><time>${esc(item.time)}</time><span class="rundown-dot"></span><div><strong>${esc(item.title)}</strong>${item.note ? `<p>${esc(item.note)}</p>` : ''}</div><b>0${index + 1}</b></div>`).join('')}</div></div>` : ''}
         </section>
 
-        <section class="letter-section section-pad"><div class="section-tag" data-reveal>02 / ${c.letter}</div><div class="letter-paper" data-reveal><div class="letter-tape"></div><span class="letter-stamp">with all my heart ${icon('heart')}</span><h2>${esc(project.letter.title)}</h2><div class="letter-body">${project.letter.paragraphs.map((p, index) => `<p data-reveal style="--reveal-order:${index}">${esc(p)}</p>`).join('')}</div><p class="letter-signoff" data-reveal>${esc(project.letter.signoff)}</p></div></section>
+        <section class="letter-section section-pad"><div class="section-tag" data-reveal>02 / ${c.letter}</div><div class="letter-paper" data-reveal><div class="letter-tape"></div><span class="letter-stamp">${c.letterStamp} ${icon('heart')}</span><h2>${esc(project.letter.title)}</h2><div class="letter-body">${project.letter.paragraphs.map((p, index) => `<p data-reveal style="--reveal-order:${index}">${esc(p)}</p>`).join('')}</div><p class="letter-signoff" data-reveal>${esc(project.letter.signoff)}</p></div></section>
         <section class="gallery-section section-pad"><div class="section-tag" data-reveal>03 / ${c.gallery}</div><div class="gallery-heading" data-reveal><h2>${esc(project.gallery.title)}</h2><p>${esc(project.gallery.subtitle)}</p></div><div id="gallery-content">${renderGallery()}</div></section>
-        <section class="closing-section section-pad"><div class="closing-paper" data-reveal><p class="scribble">one more thing...</p><h2>${esc(project.closing.title)}</h2><p>${esc(project.closing.message)}</p><div class="closing-divider"><span>${icon('spark')}</span><span>${icon('spark')}</span><span>${icon('spark')}</span></div><h3>${esc(project.closing.question)}</h3><button id="say-yes" class="yes-button">${c.yes} ${icon('arrow')}</button><small>THE PLAN · ${date.full.toUpperCase()}</small></div></section>
+        <section class="closing-section section-pad"><div class="closing-paper" data-reveal><p class="scribble">${c.oneMoreThing}</p><h2>${esc(project.closing.title)}</h2><p>${esc(project.closing.message)}</p><div class="closing-divider"><span>${icon('spark')}</span><span>${icon('spark')}</span><span>${icon('spark')}</span></div><h3>${esc(project.closing.question)}</h3><button id="say-yes" class="yes-button">${c.yes} ${icon('arrow')}</button><small>THE PLAN · ${date.full.toUpperCase()}</small></div></section>
       </main>
     </div>
-    <div class="modal-backdrop" id="ticket-modal" hidden><div class="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-title"><button class="modal-close" id="ticket-close" aria-label="${c.close}">${icon('close')}</button><div class="printer"><div class="printer-top"><span>THE PLAN</span><span class="printer-light"></span></div><div class="printer-slot"></div><div class="printed-card" id="printed-card"><span class="ticket-stamp">THE PLAN<br>FOR YOU</span><span class="ticket-kicker">A LITTLE DAY, PLANNED WITH LOVE</span><h3>${esc(project.invitation.title)}</h3><div class="ticket-rule"></div><span>${c.date}</span><strong>${esc(date.full)}</strong><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong>${project.invitation.venue ? `<span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>` : ''}<em>${esc(project.closing.ticketMessage)}</em><small>THE PLAN · KEEP THIS DATE.</small></div></div><h2 id="ticket-title">${c.ready}</h2><p class="ticket-feedback" id="ticket-feedback">${c.saved}</p><div class="ticket-actions"><button id="ticket-download">${icon('download')}${c.download}</button><button id="ticket-share">${icon('share')}${c.share}</button></div></div></div>`;
+    <div class="modal-backdrop" id="ticket-modal" hidden><div class="ticket-modal" role="dialog" aria-modal="true" aria-labelledby="ticket-title"><button class="modal-close" id="ticket-close" aria-label="${c.close}">${icon('close')}</button><div class="printer"><div class="printer-top"><span>THE PLAN</span><span class="printer-light"></span></div><div class="printer-slot"></div><div class="printed-card" id="printed-card"><span class="ticket-stamp">THE PLAN<br>${c.forYou}</span><span class="ticket-kicker">${c.ticketKicker}</span><h3>${esc(project.invitation.title)}</h3><div class="ticket-rule"></div><span>${c.date}</span><strong>${esc(date.full)}</strong><span>${c.time}</span><strong>${esc(project.invitation.startTime)}${project.invitation.endTime ? ` – ${esc(project.invitation.endTime)}` : ''}</strong>${project.invitation.venue ? `<span>${c.place}</span><strong>${esc(project.invitation.venue)}</strong>` : ''}<em>${esc(project.closing.ticketMessage)}</em><small>THE PLAN · ${c.keepDate}</small></div></div><h2 id="ticket-title">${c.ready}</h2><p class="ticket-feedback" id="ticket-feedback">${c.saved}</p><div class="ticket-actions"><button id="ticket-download">${icon('download')}${c.download}</button><button id="ticket-share">${icon('share')}${c.share}</button></div></div></div>`;
   bind();
+  if (unlocked && isPreview && previewTarget) {
+    document.querySelector('#gate')?.remove();
+    bindScrollReveals();
+    bindInvitationPrinter();
+    requestAnimationFrame(() => {
+      const target = document.getElementById(previewTarget) || document.querySelector<HTMLElement>(`.${previewTarget}-section`);
+      target?.scrollIntoView({ block: previewTarget === 'music-player' ? 'center' : 'start', behavior: 'instant' });
+    });
+  }
 }
 
 function openGate(): void {
@@ -346,7 +361,7 @@ function bindMusic(): void {
   const total = document.querySelector<HTMLElement>('#music-total');
   const player = document.querySelector<HTMLElement>('#music-player');
   const stamp = (value: number) => `${Math.floor(value / 60)}:${String(Math.floor(value % 60)).padStart(2, '0')}`;
-  button.addEventListener('click', async () => { if (!audio) return; if (audio.paused) { try { await audio.play(); } catch { button.title = 'Audio unavailable'; } } else audio.pause(); });
+  button.addEventListener('click', async () => { if (!audio) return; if (audio.paused) { try { await audio.play(); } catch { button.title = t(project.locale).audioUnavailable; } } else audio.pause(); });
   audio.addEventListener('play', () => { button.innerHTML = icon('pause'); button.setAttribute('aria-label', t(project.locale).pause); player?.classList.add('is-playing'); });
   audio.addEventListener('pause', () => { button.innerHTML = icon('play'); button.setAttribute('aria-label', t(project.locale).play); player?.classList.remove('is-playing'); });
   audio.addEventListener('loadedmetadata', () => { if (total && audio) total.textContent = stamp(audio.duration); });
@@ -400,9 +415,13 @@ function bindInvitationPrinter(): void {
 function bind(): void {
   bindPuzzle(); bindMusic(); bindGateContinuation();
   document.querySelector('#say-yes')?.addEventListener('click', async () => {
-    await saveYesResponse(project.id);
+    let responseSaved = true;
+    if (!isPreview) {
+      try { await saveYesResponse(project.id); } catch { responseSaved = false; }
+    }
     const modal = document.querySelector<HTMLElement>('#ticket-modal'); if (!modal) return;
     modal.hidden = false; document.body.classList.add('modal-open');
+    if (!responseSaved) feedback(t(project.locale).responseError);
     document.querySelector('#ticket-close')?.addEventListener('click', closeTicket, { once: true });
     setTimeout(() => document.querySelector<HTMLButtonElement>('#ticket-close')?.focus(), 50);
   });

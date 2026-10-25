@@ -5,19 +5,27 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "dev:worker": "wrangler dev --local --port 8787",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
-    "check": "npm run test && npm run build"
+    "check": "npm run test && npm run build && npm run typecheck:worker",
+    "typecheck:worker": "tsc --project tsconfig.worker.json --noEmit"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261024.1",
+    "@types/qrcode": "^1.5.6",
+    "jsqr": "^1.4.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.152.0"
   },
   "dependencies": {
     "@fontsource/caveat": "^5.2.8",
     "@fontsource/chewy": "^5.3.0",
-    "@fontsource/comic-neue": "^5.3.0"
+    "@fontsource/comic-neue": "^5.3.0",
+    "qrcode": "^1.5.4",
+    "zod": "^4.6.7"
   }
 }

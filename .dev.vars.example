@@ -1,0 +1,9 @@
+STUDIO_PASSWORD=choose-a-local-password
+SESSION_SECRET=replace-with-a-long-random-secret
+# Match this with THE_PLAN_INGEST_SECRET on Pakasir Gateway.
+ORDER_INGEST_SECRET=replace-with-a-long-random-shared-secret
+ALLOWED_ORIGIN=http://127.0.0.1:5173,http://localhost:5173
+FRONTEND_ORIGIN=http://127.0.0.1:5173
+# Optional. Set this only when local development writes to the same remote R2
+# used by the deployed Worker. Otherwise media URLs should stay local.
+MEDIA_PUBLIC_ORIGIN=

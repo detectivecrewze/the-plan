@@ -12,6 +12,17 @@ describe('gift project contract', () => {
   it('requires a valid event date and time for the invitation and ticket', () => {
     expect(validateProject({ ...demo, invitation: { ...demo.invitation, date: 'soon', startTime: 'later' } })).toEqual(expect.arrayContaining(['Event date must be valid', 'Start time must be HH:mm']));
   });
+  it('keeps incomplete Studio drafts out of published gifts', () => {
+    const project = structuredClone(demo);
+    project.letter.paragraphs = [];
+    project.gallery.photos = [];
+    project.closing.title = '';
+    expect(validateProject(project)).toEqual(expect.arrayContaining([
+      'Letter title and body are required',
+      'Add at least one gallery photo or video',
+      'Closing title is required',
+    ]));
+  });
   it('only permits ordinary web map URLs', () => {
     expect(safeExternalUrl('javascript:alert(1)')).toBeUndefined();
     expect(safeExternalUrl('https://maps.google.com/example')).toBe('https://maps.google.com/example');
