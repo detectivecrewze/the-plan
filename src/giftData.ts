@@ -1,8 +1,8 @@
 import { demo } from './demo';
+import { apiBase } from './apiBase';
 import { projectSchema } from './projectSchema';
 import type { GiftProject } from './project';
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const idPattern = /^[a-z0-9][a-z0-9-]{2,63}$/;
 
 export const isPreview = new URLSearchParams(location.search).has('preview') ||

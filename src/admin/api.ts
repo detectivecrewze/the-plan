@@ -1,7 +1,8 @@
 import { studioSession, StudioApiError } from '../studio/api';
+import { apiBase } from '../apiBase';
 import type { CreateOrderPayload, DashboardData, OrderStatus } from './types';
 
-const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const base = apiBase;
 
 async function send<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);

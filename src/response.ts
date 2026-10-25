@@ -1,6 +1,6 @@
-export interface YesResponse { projectId: string; answer: 'yes'; answeredAt: string }
+import { apiBase } from './apiBase';
 
-const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export interface YesResponse { projectId: string; answer: 'yes'; answeredAt: string }
 
 export async function saveYesResponse(projectId: string): Promise<YesResponse> {
   if (location.pathname.startsWith('/gift/')) {

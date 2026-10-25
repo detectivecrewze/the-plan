@@ -1,6 +1,7 @@
 import type { GiftProject } from '../project';
+import { apiBase } from '../apiBase';
 
-const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const base = apiBase;
 const tokenKey = 'the-plan:studio-session';
 
 export const studioSession = {

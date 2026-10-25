@@ -1,6 +1,7 @@
 import type { PlanFormAnswers, PublicFormRecord } from './types';
+import { apiBase } from '../apiBase';
 
-const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const base = apiBase;
 
 export class FormApiError extends Error {
   constructor(message: string, public status: number, public issues: string[] = []) { super(message); }
