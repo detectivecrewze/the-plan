@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { demo } from '../src/demo';
 import { copy } from '../src/copy';
 import { validateProject, safeExternalUrl } from '../src/project';
-import { themeIds, themes } from '../src/themes';
+import { getDemoThemeOverride, themeIds, themes } from '../src/themes';
 
 describe('gift project contract', () => {
   it('accepts the full demo and optional venue fields', () => {
@@ -45,6 +45,13 @@ describe('gift project contract', () => {
       expect(validateProject({ ...demo, theme })).toEqual([]);
     });
     expect(validateProject({ ...demo, theme: 'unknown' as never })).toContain('A supported theme is required');
+  });
+  it('allows theme switching only on the dedicated storefront demo', () => {
+    expect(getDemoThemeOverride('/', 'the-plan-iota.vercel.app', '?theme=sage-botanical')).toBe('sage-botanical');
+    expect(getDemoThemeOverride('/', 'localhost', '?theme=midnight-navy')).toBe('midnight-navy');
+    expect(getDemoThemeOverride('/gift/plan-nara', 'the-plan-iota.vercel.app', '?theme=sage-botanical')).toBeUndefined();
+    expect(getDemoThemeOverride('/', 'gift.customer.test', '?theme=sage-botanical')).toBeUndefined();
+    expect(getDemoThemeOverride('/', 'the-plan-iota.vercel.app', '?theme=unknown')).toBeUndefined();
   });
   it('keeps Indonesian and English gift controls in parity', () => {
     expect(Object.keys(copy.id).sort()).toEqual(Object.keys(copy.en).sort());

@@ -70,6 +70,14 @@ export function isThemeId(value: unknown): value is ThemeId {
   return typeof value === 'string' && themeIds.includes(value as ThemeId);
 }
 
+const storefrontDemoHosts = new Set(['localhost', '127.0.0.1', 'the-plan-iota.vercel.app']);
+
+export function getDemoThemeOverride(pathname: string, hostname: string, search: string): ThemeId | undefined {
+  if (pathname !== '/' || !storefrontDemoHosts.has(hostname.toLowerCase())) return undefined;
+  const requestedTheme = new URLSearchParams(search).get('theme');
+  return isThemeId(requestedTheme) ? requestedTheme : undefined;
+}
+
 export function applyTheme(themeId: ThemeId): void {
   const root = document.documentElement;
   const colors = themes[themeId].colors;

@@ -33,6 +33,15 @@ export interface ProjectSummary {
   theme: ThemeId;
   savedAt: string;
   publishedAt: string | null;
+  customHostname?: string;
+}
+
+export interface ProjectIdentityResult {
+  projectId: string;
+  customHostname: string;
+  giftUrl: string;
+  studioUrl: string;
+  formUrl: string | null;
 }
 
 export interface RecipientResponse {

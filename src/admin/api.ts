@@ -1,6 +1,6 @@
 import { studioSession, StudioApiError } from '../studio/api';
 import { apiBase } from '../apiBase';
-import type { CreateOrderPayload, DashboardData, OrderStatus } from './types';
+import type { CreateOrderPayload, DashboardData, OrderStatus, ProjectIdentityResult } from './types';
 
 const base = apiBase;
 
@@ -24,5 +24,9 @@ export const adminApi = {
   }),
   updateOrder: (orderId: string, status: OrderStatus, notes: string) => send<{ updatedAt: string }>(`/api/internal/orders/${encodeURIComponent(orderId)}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, notes }),
+  }),
+  applyOrder: (orderId: string) => send<{ appliedAt: string; projectId: string }>(`/api/internal/orders/${encodeURIComponent(orderId)}/apply`, { method: 'POST' }),
+  updateProjectIdentity: (projectId: string, nextProjectId: string, customHostname: string) => send<ProjectIdentityResult>(`/api/internal/projects/${encodeURIComponent(projectId)}/identity`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId: nextProjectId, customHostname }),
   }),
 };

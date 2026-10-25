@@ -30,7 +30,7 @@ async function send<T>(path: string, options: RequestInit = {}, authenticated = 
   return response.json() as Promise<T>;
 }
 
-export interface DraftRecord { project: GiftProject; savedAt: string; publishedAt: string | null }
+export interface DraftRecord { project: GiftProject; savedAt: string; publishedAt: string | null; giftUrl: string }
 
 export const studioApi = {
   async login(password: string): Promise<void> {

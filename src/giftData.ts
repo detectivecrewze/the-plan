@@ -1,5 +1,6 @@
 import { demo } from './demo';
 import { apiBase } from './apiBase';
+import { isCustomGiftHostname } from './publicLinks';
 import { projectSchema } from './projectSchema';
 import type { GiftProject } from './project';
 
@@ -15,6 +16,14 @@ export async function loadGiftProject(): Promise<GiftProject> {
     const draft = sessionStorage.getItem(`the-plan:preview:${previewId}`);
     if (!draft) throw new Error('Preview is unavailable. Open it from Studio.');
     return projectSchema.parse(JSON.parse(draft));
+  }
+
+  if (location.pathname === '/' && isCustomGiftHostname(location.hostname)) {
+    const response = await fetch(`${apiBase}/api/public/domains/${encodeURIComponent(location.hostname.toLowerCase())}`);
+    if (response.status === 404) throw new Error('This custom gift link is not connected yet.');
+    if (!response.ok) throw new Error('Could not load this custom gift link. Please try again.');
+    const payload = await response.json() as { project: unknown };
+    return projectSchema.parse(payload.project);
   }
 
   const match = location.pathname.match(/^\/gift\/([^/]+)\/?$/);

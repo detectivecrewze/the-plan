@@ -9,18 +9,16 @@ import { t, eventDate } from './copy';
 import { safeExternalUrl, validateProject, type GiftProject, type Photo } from './project';
 import { saveYesResponse } from './response';
 import { downloadBlob, makeTicket } from './ticket';
-import { applyTheme, isThemeId } from './themes';
+import { applyTheme, getDemoThemeOverride } from './themes';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing app root');
 
 // The published gift receives one locale from project data. Language selection belongs
 // to the future customer form, so the recipient page intentionally has no switch.
-const requestedTheme = new URLSearchParams(location.search).get('theme');
-const samplePreview = location.pathname === '/' && new URLSearchParams(location.search).get('sample') === '1';
-const localTheme = (['localhost', '127.0.0.1'].includes(location.hostname) || samplePreview) && isThemeId(requestedTheme) ? requestedTheme : undefined;
+const demoTheme = getDemoThemeOverride(location.pathname, location.hostname, location.search);
 const loadedProject = await loadGiftProject();
-const sourceProject: GiftProject = localTheme ? { ...loadedProject, theme: localTheme } : loadedProject;
+const sourceProject: GiftProject = demoTheme ? { ...loadedProject, theme: demoTheme } : loadedProject;
 const enteredEndTime = sourceProject.invitation.endTime?.trim();
 const project: GiftProject = { ...sourceProject, invitation: { ...sourceProject.invitation, endTime: !enteredEndTime || enteredEndTime.toUpperCase() === 'END' ? 'END' : enteredEndTime } };
 const issues = validateProject(project);

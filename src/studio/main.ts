@@ -19,6 +19,7 @@ let project: GiftProject | null = null;
 let activeSection: Section = 'identity';
 let savedAt = '';
 let publishedAt: string | null = null;
+let resolvedGiftUrl = '';
 let dirty = false;
 let saveTimer: number | undefined;
 let saveChain = Promise.resolve();
@@ -35,7 +36,7 @@ let playlistPreviewUrl = '';
 
 const t = () => studioText(uiLocale);
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
-const giftUrl = () => `${location.origin}/gift/${project!.id}`;
+const giftUrl = () => resolvedGiftUrl || `${location.origin}/gift/${project!.id}`;
 const status = (value: string, isError = false) => {
   const node = document.querySelector<HTMLElement>('#studio-status');
   if (node) { node.textContent = value; node.dataset.error = String(isError); }
@@ -229,6 +230,7 @@ async function openProject(id: string): Promise<void> {
   pendingPreset = null; stopPlaylistPreview();
   savedAt = record.savedAt;
   publishedAt = record.publishedAt;
+  resolvedGiftUrl = record.giftUrl;
   dirty = false;
   errorText = '';
   history.replaceState(null, '', `/studio/${encodeURIComponent(id)}`);
@@ -412,7 +414,7 @@ root.addEventListener('click', async (event) => {
     if (issues.length) { status(`${t().publishIssues} ${issues.join(' · ')}`, true); return; }
     if (!confirm(t().publishConfirm)) return;
     if (!(await flushSave())) return;
-    try { const result = await studioApi.publish(project.id); publishedAt = result.publishedAt; await showBarcode(structuredClone(project)); }
+    try { const result = await studioApi.publish(project.id); publishedAt = result.publishedAt; resolvedGiftUrl = result.giftUrl; await showBarcode(structuredClone(project)); }
     catch (error) { status(error instanceof Error ? error.message : String(error), true); }
   }
 });

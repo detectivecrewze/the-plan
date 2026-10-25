@@ -6,6 +6,7 @@ import { planFormDraftSchema, planFormSchema } from '../src/form/schema';
 import type { PlanFormAnswers } from '../src/form/types';
 import { applyFormAnswersToProject } from '../src/form/applyToProject';
 import { createProjectStarter } from '../src/projectStarter';
+import { normalizeCustomHostname, publicGiftUrl } from '../src/publicLinks';
 
 export interface Env {
   THE_PLAN_KV: KVNamespace;
@@ -119,6 +120,7 @@ function textValue(value: unknown, limit: number): string | null {
 }
 
 interface FormAccess { orderId: string; formToken: string }
+interface ProjectMeta { customHostname?: string }
 
 interface PaymentOrderRequest {
   orderId?: unknown;
@@ -147,6 +149,11 @@ function paymentLinks(env: Env, id: string, formToken: string) {
     formUrl: new URL(`/form/${id}?token=${encodeURIComponent(formToken)}`, origin).href,
     studioUrl: new URL(`/studio/${id}`, origin).href,
   };
+}
+
+async function finalGiftUrl(env: Env, id: string): Promise<string> {
+  const meta = await env.THE_PLAN_KV.get<ProjectMeta>(`project-meta:${id}`, 'json');
+  return publicGiftUrl(frontendOrigin(env), id, meta?.customHostname);
 }
 
 async function getFormContext(request: Request, env: Env, id: string): Promise<{ access: FormAccess; order: AdminOrder } | Response> {
@@ -254,6 +261,15 @@ async function handle(request: Request, env: Env): Promise<Response> {
     return published ? json({ project: published.project, publishedAt: published.publishedAt }) : json({ error: 'Gift not found' }, 404);
   }
 
+  if (request.method === 'GET' && segments[0] === 'api' && segments[1] === 'public' && segments[2] === 'domains' && segments.length === 4) {
+    const hostname = normalizeCustomHostname(decodeURIComponent(segments[3]));
+    if (!hostname) return json({ error: 'Invalid custom domain' }, 400);
+    const mapping = await env.THE_PLAN_KV.get<{ projectId: string }>(`domain:${hostname}`, 'json');
+    if (!mapping || !projectId.test(mapping.projectId)) return json({ error: 'Custom domain not connected' }, 404);
+    const published = await env.THE_PLAN_KV.get<{ project: GiftProject; publishedAt: string }>(`gift:${mapping.projectId}`, 'json');
+    return published ? json({ project: published.project, publishedAt: published.publishedAt }) : json({ error: 'Gift not found' }, 404);
+  }
+
   if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'public' && segments[2] === 'responses' && segments.length === 4) {
     const id = segments[3];
     if (!projectId.test(id)) return json({ error: 'Invalid gift ID' }, 400);
@@ -346,21 +362,53 @@ async function handle(request: Request, env: Env): Promise<Response> {
       listValues<RecipientResponse>(env.THE_PLAN_KV, 'response:'),
     ]);
     const publishedById = new Map(published.map((record) => [record.project.id, record.publishedAt]));
-    const projects: ProjectSummary[] = drafts.map((record) => ({
-      id: record.project.id,
-      recipient: record.project.recipient || '',
-      sender: record.project.sender || '',
-      locale: record.project.locale,
-      theme: record.project.theme,
-      savedAt: record.savedAt,
-      publishedAt: publishedById.get(record.project.id) || null,
-    })).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+    const projects: ProjectSummary[] = (await Promise.all(drafts.map(async (record) => {
+      const meta = await env.THE_PLAN_KV.get<ProjectMeta>(`project-meta:${record.project.id}`, 'json');
+      return {
+        id: record.project.id,
+        recipient: record.project.recipient || '',
+        sender: record.project.sender || '',
+        locale: record.project.locale,
+        theme: record.project.theme,
+        savedAt: record.savedAt,
+        publishedAt: publishedById.get(record.project.id) || null,
+        ...(meta?.customHostname ? { customHostname: meta.customHostname } : {}),
+      };
+    }))).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
     const data: DashboardData = {
       projects,
       orders: orders.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       responses: responses.sort((a, b) => b.answeredAt.localeCompare(a.answeredAt)),
     };
     return json(data);
+  }
+
+  if (request.method === 'POST' && segments[0] === 'api' && segments[1] === 'internal' && segments[2] === 'orders' && segments[4] === 'apply' && segments.length === 5) {
+    const id = segments[3];
+    if (!orderId.test(id)) return json({ error: 'Invalid Order ID' }, 400);
+    const order = await env.THE_PLAN_KV.get<AdminOrder>(`order:${id}`, 'json');
+    if (!order) return json({ error: 'Order not found' }, 404);
+    if (!order.answers) return json({ error: 'Customer form has not been submitted' }, 409);
+    const draft = await env.THE_PLAN_KV.get<{ project: GiftProject; savedAt: string }>(`draft:${order.projectId}`, 'json');
+    if (!draft?.project) return json({ error: 'Studio draft not found' }, 404);
+    const applied = projectSchema.safeParse(applyFormAnswersToProject(draft.project, order.answers));
+    if (!applied.success) return json({ error: 'Customer answers could not be applied to the Studio draft' }, 422);
+    const appliedAt = new Date().toISOString();
+    const updatedOrder: AdminOrder = {
+      ...order,
+      status: order.status === 'waiting_form' ? 'ready_to_craft' : order.status,
+      recipient: order.answers.people.recipient,
+      sender: order.answers.people.sender,
+      locale: order.answers.locale,
+      theme: order.answers.theme,
+      draftAppliedAt: appliedAt,
+      updatedAt: appliedAt,
+    };
+    await Promise.all([
+      env.THE_PLAN_KV.put(`draft:${order.projectId}`, JSON.stringify({ project: applied.data, savedAt: appliedAt })),
+      env.THE_PLAN_KV.put(`order:${id}`, JSON.stringify(updatedOrder)),
+    ]);
+    return json({ appliedAt, projectId: order.projectId });
   }
 
   if (request.method === 'POST' && url.pathname === '/api/internal/orders') {
@@ -419,6 +467,65 @@ async function handle(request: Request, env: Env): Promise<Response> {
     return json({ updatedAt });
   }
 
+  if (request.method === 'PUT' && segments[0] === 'api' && segments[1] === 'internal' && segments[2] === 'projects' && segments[4] === 'identity' && segments.length === 5) {
+    const oldId = segments[3];
+    if (!projectId.test(oldId)) return json({ error: 'Invalid project ID' }, 400);
+    let raw: { projectId?: unknown; customHostname?: unknown };
+    try { raw = await request.json() as typeof raw; } catch { return json({ error: 'Invalid JSON' }, 400); }
+    const nextId = textValue(raw.projectId, 64);
+    if (!nextId || !projectId.test(nextId)) return json({ error: 'Use 3–64 lowercase letters, numbers, or hyphens for the link ID' }, 400);
+    const hostname = normalizeCustomHostname(raw.customHostname);
+    if (hostname === null) return json({ error: 'Enter a hostname only, for example gift.namaanda.com' }, 400);
+
+    const [draft, published, access, formDraft, response, currentMeta, orders] = await Promise.all([
+      env.THE_PLAN_KV.get<{ project: GiftProject; savedAt: string }>(`draft:${oldId}`, 'json'),
+      env.THE_PLAN_KV.get<{ project: GiftProject; publishedAt: string }>(`gift:${oldId}`, 'json'),
+      env.THE_PLAN_KV.get<FormAccess>(`form-access:${oldId}`, 'json'),
+      env.THE_PLAN_KV.get<{ answers: PlanFormAnswers; savedAt: string }>(`form-draft:${oldId}`, 'json'),
+      env.THE_PLAN_KV.get<RecipientResponse>(`response:${oldId}`, 'json'),
+      env.THE_PLAN_KV.get<ProjectMeta>(`project-meta:${oldId}`, 'json'),
+      listValues<AdminOrder>(env.THE_PLAN_KV, 'order:'),
+    ]);
+    if (!draft?.project) return json({ error: 'Project not found' }, 404);
+    const order = orders.find((item) => item.projectId === oldId);
+    if (nextId !== oldId && order && !order.submittedAt) return json({ error: 'Wait until the customer submits the form before changing the link ID' }, 409);
+    if (nextId !== oldId) {
+      const collision = await Promise.all([
+        env.THE_PLAN_KV.get(`draft:${nextId}`), env.THE_PLAN_KV.get(`gift:${nextId}`), env.THE_PLAN_KV.get(`form-access:${nextId}`),
+      ]);
+      if (collision.some(Boolean)) return json({ error: 'That link ID is already in use' }, 409);
+    }
+    if (hostname) {
+      const mapped = await env.THE_PLAN_KV.get<{ projectId: string }>(`domain:${hostname}`, 'json');
+      if (mapped && mapped.projectId !== oldId && mapped.projectId !== nextId) return json({ error: 'That custom domain is already connected to another project' }, 409);
+    }
+
+    const now = new Date().toISOString();
+    const nextDraft = { ...draft, project: { ...draft.project, id: nextId }, savedAt: now };
+    const writes: Promise<void>[] = [env.THE_PLAN_KV.put(`draft:${nextId}`, JSON.stringify(nextDraft))];
+    if (published) writes.push(env.THE_PLAN_KV.put(`gift:${nextId}`, JSON.stringify({ ...published, project: { ...published.project, id: nextId } })));
+    if (access) writes.push(env.THE_PLAN_KV.put(`form-access:${nextId}`, JSON.stringify(access)));
+    if (formDraft) writes.push(env.THE_PLAN_KV.put(`form-draft:${nextId}`, JSON.stringify(formDraft)));
+    if (response) writes.push(env.THE_PLAN_KV.put(`response:${nextId}`, JSON.stringify({ ...response, projectId: nextId })));
+    if (order) writes.push(env.THE_PLAN_KV.put(`order:${order.orderId}`, JSON.stringify({ ...order, projectId: nextId, updatedAt: now })));
+    if (hostname) {
+      writes.push(env.THE_PLAN_KV.put(`project-meta:${nextId}`, JSON.stringify({ customHostname: hostname } satisfies ProjectMeta)));
+      writes.push(env.THE_PLAN_KV.put(`domain:${hostname}`, JSON.stringify({ projectId: nextId })));
+    }
+    await Promise.all(writes);
+
+    const deletes: Promise<void>[] = [];
+    if (nextId !== oldId) {
+      for (const prefix of ['draft:', 'gift:', 'form-access:', 'form-draft:', 'response:', 'project-meta:']) deletes.push(env.THE_PLAN_KV.delete(`${prefix}${oldId}`));
+    } else if (!hostname) deletes.push(env.THE_PLAN_KV.delete(`project-meta:${oldId}`));
+    if (currentMeta?.customHostname && currentMeta.customHostname !== hostname) deletes.push(env.THE_PLAN_KV.delete(`domain:${currentMeta.customHostname}`));
+    await Promise.all(deletes);
+
+    const finalUrl = publicGiftUrl(frontendOrigin(env), nextId, hostname || undefined);
+    const formUrl = access ? paymentLinks(env, nextId, access.formToken).formUrl : null;
+    return json({ projectId: nextId, customHostname: hostname || '', giftUrl: finalUrl, studioUrl: new URL(`/studio/${nextId}`, frontendOrigin(env)).href, formUrl });
+  }
+
   if (request.method === 'POST' && url.pathname === '/api/internal/drafts') {
     const project = await readProject(request);
     if (project instanceof Response) return project;
@@ -437,7 +544,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
         env.THE_PLAN_KV.get<{ project: GiftProject; savedAt: string }>(draftKey, 'json'),
         env.THE_PLAN_KV.get<{ publishedAt: string }>(`gift:${id}`, 'json'),
       ]);
-      return draft ? json({ ...draft, publishedAt: published?.publishedAt || null }) : json({ error: 'Draft not found' }, 404);
+      return draft ? json({ ...draft, publishedAt: published?.publishedAt || null, giftUrl: await finalGiftUrl(env, id) }) : json({ error: 'Draft not found' }, 404);
     }
     if (request.method === 'PUT' && segments.length === 4) {
       if (!(await env.THE_PLAN_KV.get(draftKey))) return json({ error: 'Draft not found' }, 404);
@@ -456,8 +563,7 @@ async function handle(request: Request, env: Env): Promise<Response> {
       if (issues.length) return json({ error: 'Draft is not ready to publish', issues }, 400);
       const publishedAt = new Date().toISOString();
       await env.THE_PLAN_KV.put(`gift:${id}`, JSON.stringify({ project: parsed.data, publishedAt }));
-      const frontend = frontendOrigin(env);
-      return json({ publishedAt, giftUrl: new URL(`/gift/${id}`, frontend).href });
+      return json({ publishedAt, giftUrl: await finalGiftUrl(env, id) });
     }
   }
 
@@ -483,7 +589,9 @@ async function handle(request: Request, env: Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get('Origin');
-    if (!allowedOrigin(origin, env)) return json({ error: 'Origin not allowed' }, 403);
+    const path = new URL(request.url).pathname;
+    const publicCustomOrigin = /^https:\/\//.test(origin || '') && (/^\/api\/public\/(?:gifts|domains|responses)\//.test(path) || path.startsWith('/api/media/'));
+    if (!allowedOrigin(origin, env) && !publicCustomOrigin) return json({ error: 'Origin not allowed' }, 403);
     if (request.method === 'OPTIONS') return withCors(new Response(null, { status: 204 }), origin);
     try { return withCors(await handle(request, env), origin); }
     catch (error) {

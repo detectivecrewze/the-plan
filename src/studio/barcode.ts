@@ -1,6 +1,8 @@
 import * as QRCode from 'qrcode';
-import type { GiftProject, Locale } from '../project';
+import type { GiftProject } from '../project';
 import { themes } from '../themes';
+
+export { reviewTemplate } from '../reviewTemplate';
 
 const xml = (value: string) => value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]!);
 
@@ -39,7 +41,6 @@ export function makeBarcodeSvg(url: string, project: GiftProject): string {
   <text x="500" y="1092" text-anchor="middle" fill="${colors.inkSoft}" font-family="Arial,sans-serif" font-size="20" letter-spacing="3">A LITTLE DAY, PLANNED WITH LOVE</text>
   </svg>`;
 }
-
 export function barcodeDataUrl(svg: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
@@ -66,8 +67,3 @@ export async function downloadBarcodePng(svg: string, filename: string): Promise
   setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
-export function reviewTemplate(project: GiftProject, url: string, locale: Locale): string {
-  const name = project.sender?.split('(')[0].trim() || '';
-  if (locale === 'en') return `Hi${name ? ` ${name}` : ''},\n\nCould you review your The Plan gift first? This is a preview for your feedback:\n${url}\n\nIf you would like changes, please send them as a short list. Once everything feels right, let me know and I will send the final link and QR stamp.`;
-  return `Halo kak${name ? ` ${name}` : ''},\n\nBoleh tolong preview dulu hasil gift The Plan-nya? Ini masih untuk dicek sebelum final:\n${url}\n\nKalau ada bagian yang ingin direvisi, tolong kirim daftarnya per poin ya kak. Kalau sudah cocok semua, kabari saya agar link final dan barcode stamp-nya bisa saya kirim.`;
-}
